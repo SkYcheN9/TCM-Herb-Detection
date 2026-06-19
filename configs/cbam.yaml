@@ -1,5 +1,6 @@
 enable_cbam: true
 enable_bifpn: false
+enable_focal_loss: false
 model: models/yolov8n_cbam.yaml
 data: dataset/data.yaml
 epochs: 100

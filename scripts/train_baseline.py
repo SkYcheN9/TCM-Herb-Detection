@@ -78,6 +78,17 @@ def parse_args() -> argparse.Namespace:
         help="Enable the BiFPN neck path. Accepts true/false.",
     )
     parser.add_argument(
+        "--enable-focal-loss",
+        default=None,
+        help="Replace YOLOv8 classification BCE with Focal Loss. Accepts true/false.",
+    )
+    parser.add_argument("--focal-gamma", type=float, default=None)
+    parser.add_argument(
+        "--focal-alpha",
+        default=None,
+        help="Focal Loss alpha in [0, 1], or none to disable alpha weighting.",
+    )
+    parser.add_argument(
         "--skip-dataset-check",
         action="store_true",
         help="Skip strict dataset validation before training.",
@@ -117,6 +128,16 @@ def default_batch_size(
     return int(config.get("batch_gpu", 16))
 
 
+def optional_float(value: Any) -> float | None:
+    """Parse a float config value, accepting none/null to disable it."""
+
+    if value is None:
+        return None
+    if isinstance(value, str) and value.lower() in {"none", "null"}:
+        return None
+    return float(value)
+
+
 def main() -> int:
     """Run Ultralytics YOLOv8 training."""
 
@@ -129,6 +150,15 @@ def main() -> int:
     )
     enable_bifpn = str_to_bool(
         args.enable_bifpn if enable_bifpn_cli_supplied else config.get("enable_bifpn")
+    )
+    enable_focal_loss = str_to_bool(
+        args.enable_focal_loss
+        if args.enable_focal_loss is not None
+        else config.get("enable_focal_loss")
+    )
+    focal_gamma = float(config_value(args, config, "focal_gamma", 2.0))
+    focal_alpha = optional_float(
+        args.focal_alpha if args.focal_alpha is not None else config.get("focal_alpha", 0.25)
     )
     model_by_feature = {
         (False, False): "yolov8n.pt",
@@ -169,6 +199,10 @@ def main() -> int:
         from models.modules import register_ultralytics_modules
 
         register_ultralytics_modules(enable_cbam=enable_cbam, enable_bifpn=enable_bifpn)
+    if enable_focal_loss:
+        from models.losses import register_focal_loss
+
+        register_focal_loss()
 
     dataset_root = data_path.parent
     project_path = Path(project_arg)
@@ -199,6 +233,10 @@ def main() -> int:
     print(f"Batch size: {batch}")
     print(f"CBAM enabled: {enable_cbam}")
     print(f"BiFPN enabled: {enable_bifpn}")
+    print(f"Focal Loss enabled: {enable_focal_loss}")
+    if enable_focal_loss:
+        print(f"Focal gamma: {focal_gamma}")
+        print(f"Focal alpha: {focal_alpha}")
     print(f"Output: {project_path / name}")
 
     try:
@@ -210,7 +248,18 @@ def main() -> int:
             "download a fresh copy."
         ) from exc
 
+    trainer = None
+    if enable_focal_loss:
+        from scripts.trainers import build_focal_trainer
+
+        trainer = build_focal_trainer(
+            enable_focal_loss=enable_focal_loss,
+            focal_gamma=focal_gamma,
+            focal_alpha=focal_alpha,
+        )
+
     model.train(
+        trainer=trainer,
         data=str(data_path),
         epochs=epochs,
         imgsz=imgsz,
