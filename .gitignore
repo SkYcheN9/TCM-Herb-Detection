@@ -44,3 +44,6 @@ env/
 *.onnx
 *.torchscript
 *.engine
+/best_openvino/
+/export_manifest.json
+/reports/pi_benchmark.csv
