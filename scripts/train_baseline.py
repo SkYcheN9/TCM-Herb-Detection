@@ -73,6 +73,11 @@ def parse_args() -> argparse.Namespace:
         help="Enable the CBAM model path. Accepts true/false.",
     )
     parser.add_argument(
+        "--enable-bifpn",
+        default=None,
+        help="Enable the BiFPN neck path. Accepts true/false.",
+    )
+    parser.add_argument(
         "--skip-dataset-check",
         action="store_true",
         help="Skip strict dataset validation before training.",
@@ -118,16 +123,32 @@ def main() -> int:
     args = parse_args()
     config = load_yaml_config(args.config)
     enable_cbam_cli_supplied = args.enable_cbam is not None
+    enable_bifpn_cli_supplied = args.enable_bifpn is not None
     enable_cbam = str_to_bool(
         args.enable_cbam if enable_cbam_cli_supplied else config.get("enable_cbam")
     )
-    default_model = "models/yolov8n_cbam.yaml" if enable_cbam else "yolov8n.pt"
-    default_name = "cbam" if enable_cbam else "baseline"
+    enable_bifpn = str_to_bool(
+        args.enable_bifpn if enable_bifpn_cli_supplied else config.get("enable_bifpn")
+    )
+    model_by_feature = {
+        (False, False): "yolov8n.pt",
+        (True, False): "models/yolov8n_cbam.yaml",
+        (False, True): "models/yolov8n_bifpn.yaml",
+        (True, True): "models/yolov8n_cbam_bifpn.yaml",
+    }
+    name_by_feature = {
+        (False, False): "baseline",
+        (True, False): "cbam",
+        (False, True): "bifpn",
+        (True, True): "cbam_bifpn",
+    }
+    default_model = model_by_feature[(enable_cbam, enable_bifpn)]
+    default_name = name_by_feature[(enable_cbam, enable_bifpn)]
 
     data_path = Path(config_value(args, config, "data", "dataset/data.yaml"))
     if args.model is not None:
         model_path = args.model
-    elif enable_cbam_cli_supplied:
+    elif enable_cbam_cli_supplied or enable_bifpn_cli_supplied:
         model_path = default_model
     else:
         model_path = config.get("model", default_model)
@@ -139,15 +160,15 @@ def main() -> int:
     project_arg = config_value(args, config, "project", "runs")
     if args.name is not None:
         name = args.name
-    elif enable_cbam_cli_supplied:
+    elif enable_cbam_cli_supplied or enable_bifpn_cli_supplied:
         name = default_name
     else:
         name = config.get("name", default_name)
 
-    if enable_cbam:
+    if enable_cbam or enable_bifpn:
         from models.modules import register_ultralytics_modules
 
-        register_ultralytics_modules()
+        register_ultralytics_modules(enable_cbam=enable_cbam, enable_bifpn=enable_bifpn)
 
     dataset_root = data_path.parent
     project_path = Path(project_arg)
@@ -177,6 +198,7 @@ def main() -> int:
     print(f"Training device: {device}")
     print(f"Batch size: {batch}")
     print(f"CBAM enabled: {enable_cbam}")
+    print(f"BiFPN enabled: {enable_bifpn}")
     print(f"Output: {project_path / name}")
 
     try:

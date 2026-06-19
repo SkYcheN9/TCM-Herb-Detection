@@ -1,4 +1,5 @@
 enable_cbam: false
+enable_bifpn: false
 model: yolov8n.pt
 data: dataset/data.yaml
 epochs: 100
