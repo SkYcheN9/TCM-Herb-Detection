@@ -36,6 +36,10 @@ env/
 /reports/ablation/*.xlsx
 /reports/desktop/
 /src/desktop/data/
+/src/frontend/.next/
+/src/frontend/.npm-cache/
+/src/frontend/node_modules/
+/src/frontend/next.*.log
 *.pt
 *.onnx
 *.torchscript
