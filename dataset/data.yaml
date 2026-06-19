@@ -1,0 +1,20 @@
+path: D:/Study/Work/Comprehensive/dataset
+train: images/train
+val: images/val
+nc: 15
+names:
+  0: zexie
+  1: niuxi
+  2: gaoliangjiang
+  3: mudanpi
+  4: yuzhu
+  5: baizhi
+  6: baishao
+  7: dazao
+  8: danshen
+  9: gancao
+  10: baixianpi
+  11: baihe
+  12: sangzhi
+  13: jiegeng
+  14: banlangen

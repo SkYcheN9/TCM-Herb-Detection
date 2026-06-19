@@ -1,0 +1,8 @@
+ultralytics>=8.0.0
+PyYAML>=6.0
+
+# CPU fallback:
+# python -m pip install torch torchvision
+#
+# CUDA training, tested on RTX 4060 Laptop GPU:
+# python -m pip install torch==2.12.1+cu126 torchvision==0.27.1+cu126 --index-url https://download.pytorch.org/whl/cu126
