@@ -29,6 +29,11 @@ env/
 /reports/phase1/*.json
 /reports/phase1/*.log
 /reports/phase1/*.pid
+/reports/ablation/runs/
+/reports/ablation/val/
+/reports/ablation/plots/
+/reports/ablation/*.csv
+/reports/ablation/*.xlsx
 *.pt
 *.onnx
 *.torchscript

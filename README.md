@@ -1,4 +1,4 @@
-# TCM-SliceAI Phase 1 + CBAM
+# TCM-SliceAI YOLOv8 训练与消融实验
 
 当前已完成数据集规范化、Ultralytics YOLOv8 Baseline 训练入口、可选 CBAM 注意力模块、可选 BiFPN Neck，以及可选 Focal Loss。不包含 GhostConv 等其他改进。
 
@@ -97,6 +97,14 @@ python -m venv .venv
 .\.venv\Scripts\python.exe train.py --config configs/cbam_bifpn_focal.yaml
 ```
 
+训练当前 FullModel：
+
+```bash
+.\.venv\Scripts\python.exe train.py --config configs/full_model.yaml
+```
+
+当前 FullModel 等同于已实现模块全集：CBAM + BiFPN + Focal Loss。不包含 GhostConv、Decoupled Head 等尚未实现的后续模块。
+
 也可以在命令行显式开启 CBAM：
 
 ```bash
@@ -122,6 +130,53 @@ python -m venv .venv
 ```
 
 训练脚本会自动检测 `torch.cuda.is_available()`：可用时使用 GPU `0`，不可用时使用 CPU，并自动调整默认 batch size。Baseline 训练默认输出到 `runs/baseline`，CBAM 输出到 `runs/cbam`，BiFPN 输出到 `runs/bifpn`，CBAM+BiFPN 输出到 `runs/cbam_bifpn`，CBAM+BiFPN+Focal 输出到 `runs/cbam_bifpn_focal`。
+
+## 消融实验
+
+一键训练并验证 5 组实验：
+
+```bash
+.\.venv\Scripts\python.exe scripts/ablation.py
+```
+
+默认实验顺序：
+
+```text
+Baseline
+Baseline+CBAM
+Baseline+CBAM+BiFPN
+Baseline+CBAM+BiFPN+Focal
+FullModel
+```
+
+消融实验输出保存到 `reports/ablation`：
+
+- `summary.csv`：Precision、Recall、mAP50、mAP50-95、FPS 汇总
+- `summary.xlsx`：Excel 汇总表
+- `history.csv`：每轮训练指标
+- `plots/loss_curve.png`：Loss 曲线
+- `plots/map_curve.png`：mAP 曲线
+- `plots/pr_curve.png`：PR 曲线
+- `runs/`：各实验训练输出
+- `val/`：各实验验证输出
+
+只跑指定实验：
+
+```bash
+.\.venv\Scripts\python.exe scripts/ablation.py --experiments baseline,cbam_bifpn_focal
+```
+
+快速冒烟验证：
+
+```bash
+.\.venv\Scripts\python.exe scripts/ablation.py --epochs 1 --imgsz 128 --batch 2 --workers 0 --experiments baseline
+```
+
+复用已有训练权重并重新导出验证报告：
+
+```bash
+.\.venv\Scripts\python.exe scripts/ablation.py --skip-train
+```
 
 ## 当前数据检查结果
 

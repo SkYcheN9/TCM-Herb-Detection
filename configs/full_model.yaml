@@ -1,0 +1,15 @@
+enable_cbam: true
+enable_bifpn: true
+enable_focal_loss: true
+focal_gamma: 2.0
+focal_alpha: 0.25
+model: models/yolov8n_cbam_bifpn.yaml
+data: dataset/data.yaml
+epochs: 100
+imgsz: 640
+batch_gpu: 16
+batch_cpu: 4
+workers: 4
+seed: 42
+project: runs
+name: full_model
