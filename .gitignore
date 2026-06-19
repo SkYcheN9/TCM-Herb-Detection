@@ -1,5 +1,7 @@
 __pycache__/
 *.py[cod]
+~$*.docx
+.idea/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -9,6 +11,7 @@ env/
 
 /data/images/
 /data/labels/
+/data/cleaned/
 
 /dataset/images/train/*
 !/dataset/images/train/.gitkeep
@@ -19,6 +22,7 @@ env/
 /dataset/labels/val/*
 !/dataset/labels/val/.gitkeep
 /dataset/labels/*.cache
+/dataset_augmented/
 
 /runs/*
 !/runs/.gitkeep
@@ -29,12 +33,18 @@ env/
 /reports/phase1/*.json
 /reports/phase1/*.log
 /reports/phase1/*.pid
+/reports/benchmark/
+/reports/evaluation/
 /reports/ablation/runs/
 /reports/ablation/val/
 /reports/ablation/plots/
 /reports/ablation/*.csv
 /reports/ablation/*.xlsx
 /reports/desktop/
+/backend/data/*.db
+/backend/data/*.log
+/backend/data/uploads/
+/backend/data/outputs/
 /src/desktop/data/
 /src/frontend/.next/
 /src/frontend/.npm-cache/
@@ -44,6 +54,8 @@ env/
 *.onnx
 *.torchscript
 *.engine
+/best_ncnn_model/
 /best_openvino/
 /export_manifest.json
+/dist/
 /reports/pi_benchmark.csv

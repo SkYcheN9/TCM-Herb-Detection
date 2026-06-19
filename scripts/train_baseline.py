@@ -82,6 +82,16 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Replace YOLOv8 classification BCE with Focal Loss. Accepts true/false.",
     )
+    parser.add_argument(
+        "--enable-ghostconv",
+        default=None,
+        help="Use the GhostConv lightweight backbone path. Accepts true/false.",
+    )
+    parser.add_argument(
+        "--enable-decoupled-head",
+        default=None,
+        help="Use DecoupledDetect instead of the default YOLOv8 Detect head. Accepts true/false.",
+    )
     parser.add_argument("--focal-gamma", type=float, default=None)
     parser.add_argument(
         "--focal-alpha",
@@ -138,6 +148,67 @@ def optional_float(value: Any) -> float | None:
     return float(value)
 
 
+def resolve_model_and_name(
+    config: dict[str, Any],
+    args: argparse.Namespace,
+    feature_flags: tuple[bool, bool, bool, bool],
+    feature_cli_supplied: bool,
+) -> tuple[str, str]:
+    """Resolve the model YAML/weights and output run name for selected features."""
+
+    enable_cbam, enable_bifpn, enable_ghostconv, enable_decoupled_head = feature_flags
+    model_by_feature = {
+        (False, False, False, False): "yolov8n.pt",
+        (True, False, False, False): "models/yolov8n_cbam.yaml",
+        (False, True, False, False): "models/yolov8n_bifpn.yaml",
+        (True, True, False, False): "models/yolov8n_cbam_bifpn.yaml",
+        (False, False, True, False): "models/yolov8n_ghost.yaml",
+        (False, False, False, True): "models/yolov8n_decoupled.yaml",
+        (True, True, True, True): "models/yolov8n_full.yaml",
+    }
+    name_by_feature = {
+        (False, False, False, False): "baseline",
+        (True, False, False, False): "cbam",
+        (False, True, False, False): "bifpn",
+        (True, True, False, False): "cbam_bifpn",
+        (False, False, True, False): "ghostconv",
+        (False, False, False, True): "decoupled_head",
+        (True, True, True, True): "full_model",
+    }
+    if feature_flags not in model_by_feature and args.model is None and "model" not in config:
+        enabled = [
+            name
+            for name, enabled_flag in zip(
+                ("CBAM", "BiFPN", "GhostConv", "DecoupledHead"),
+                feature_flags,
+            )
+            if enabled_flag
+        ]
+        raise ValueError(
+            "No default model YAML for feature combination: "
+            f"{', '.join(enabled) or 'Baseline'}. Provide --model explicitly."
+        )
+
+    default_model = model_by_feature.get(feature_flags, config.get("model", "yolov8n.pt"))
+    default_name = name_by_feature.get(feature_flags, config.get("name", "custom_model"))
+
+    if args.model is not None:
+        model_path = args.model
+    elif feature_cli_supplied:
+        model_path = default_model
+    else:
+        model_path = config.get("model", default_model)
+
+    if args.name is not None:
+        name = args.name
+    elif feature_cli_supplied:
+        name = default_name
+    else:
+        name = config.get("name", default_name)
+
+    return model_path, name
+
+
 def main() -> int:
     """Run Ultralytics YOLOv8 training."""
 
@@ -145,6 +216,8 @@ def main() -> int:
     config = load_yaml_config(args.config)
     enable_cbam_cli_supplied = args.enable_cbam is not None
     enable_bifpn_cli_supplied = args.enable_bifpn is not None
+    enable_ghostconv_cli_supplied = args.enable_ghostconv is not None
+    enable_decoupled_head_cli_supplied = args.enable_decoupled_head is not None
     enable_cbam = str_to_bool(
         args.enable_cbam if enable_cbam_cli_supplied else config.get("enable_cbam")
     )
@@ -156,49 +229,48 @@ def main() -> int:
         if args.enable_focal_loss is not None
         else config.get("enable_focal_loss")
     )
+    enable_ghostconv = str_to_bool(
+        args.enable_ghostconv
+        if enable_ghostconv_cli_supplied
+        else config.get("enable_ghostconv")
+    )
+    enable_decoupled_head = str_to_bool(
+        args.enable_decoupled_head
+        if enable_decoupled_head_cli_supplied
+        else config.get("enable_decoupled_head")
+    )
     focal_gamma = float(config_value(args, config, "focal_gamma", 2.0))
     focal_alpha = optional_float(
         args.focal_alpha if args.focal_alpha is not None else config.get("focal_alpha", 0.25)
     )
-    model_by_feature = {
-        (False, False): "yolov8n.pt",
-        (True, False): "models/yolov8n_cbam.yaml",
-        (False, True): "models/yolov8n_bifpn.yaml",
-        (True, True): "models/yolov8n_cbam_bifpn.yaml",
-    }
-    name_by_feature = {
-        (False, False): "baseline",
-        (True, False): "cbam",
-        (False, True): "bifpn",
-        (True, True): "cbam_bifpn",
-    }
-    default_model = model_by_feature[(enable_cbam, enable_bifpn)]
-    default_name = name_by_feature[(enable_cbam, enable_bifpn)]
 
     data_path = Path(config_value(args, config, "data", "dataset/data.yaml"))
-    if args.model is not None:
-        model_path = args.model
-    elif enable_cbam_cli_supplied or enable_bifpn_cli_supplied:
-        model_path = default_model
-    else:
-        model_path = config.get("model", default_model)
+    model_path, name = resolve_model_and_name(
+        config=config,
+        args=args,
+        feature_flags=(enable_cbam, enable_bifpn, enable_ghostconv, enable_decoupled_head),
+        feature_cli_supplied=(
+            enable_cbam_cli_supplied
+            or enable_bifpn_cli_supplied
+            or enable_ghostconv_cli_supplied
+            or enable_decoupled_head_cli_supplied
+        ),
+    )
     epochs = int(config_value(args, config, "epochs", 100))
     imgsz = int(config_value(args, config, "imgsz", 640))
     workers = int(config_value(args, config, "workers", 4))
     seed = int(config_value(args, config, "seed", 42))
     device_arg = config_value(args, config, "device", "auto")
     project_arg = config_value(args, config, "project", "runs")
-    if args.name is not None:
-        name = args.name
-    elif enable_cbam_cli_supplied or enable_bifpn_cli_supplied:
-        name = default_name
-    else:
-        name = config.get("name", default_name)
 
-    if enable_cbam or enable_bifpn:
+    if enable_cbam or enable_bifpn or enable_decoupled_head:
         from models.modules import register_ultralytics_modules
 
-        register_ultralytics_modules(enable_cbam=enable_cbam, enable_bifpn=enable_bifpn)
+        register_ultralytics_modules(
+            enable_cbam=enable_cbam,
+            enable_bifpn=enable_bifpn,
+            enable_decoupled_head=enable_decoupled_head,
+        )
     if enable_focal_loss:
         from models.losses import register_focal_loss
 
@@ -233,6 +305,8 @@ def main() -> int:
     print(f"Batch size: {batch}")
     print(f"CBAM enabled: {enable_cbam}")
     print(f"BiFPN enabled: {enable_bifpn}")
+    print(f"GhostConv enabled: {enable_ghostconv}")
+    print(f"Decoupled Head enabled: {enable_decoupled_head}")
     print(f"Focal Loss enabled: {enable_focal_loss}")
     if enable_focal_loss:
         print(f"Focal gamma: {focal_gamma}")

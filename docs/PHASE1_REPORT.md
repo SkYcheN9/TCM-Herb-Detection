@@ -4,7 +4,7 @@
 
 本项目面向中医药饮片智能检测与识别场景，目标是在规范化饮片图像数据集的基础上，构建一个基于 Ultralytics YOLOv8 的多类别目标检测模型，实现 15 类中药饮片的定位、识别与计数能力。
 
-当前阶段已完成数据集规范化、YOLOv8 Baseline 训练、CBAM 注意力模块、BiFPN Neck、Focal Loss 分类损失替换，以及自动化消融实验脚本。当前实现不包含 GhostConv、Decoupled Head、Web 端、摄像头检测和树莓派部署等后续阶段内容。
+当前阶段已完成数据集规范化、YOLOv8 Baseline 训练、CBAM 注意力模块、BiFPN Neck、Focal Loss 分类损失替换、GhostConv 轻量化骨干、Decoupled Head 解耦检测头，以及自动化消融实验脚本。Baseline 仍保持官方 YOLOv8n 路径，所有改进模块均通过配置开关启用。
 
 ## 2. 数据集规模
 
@@ -168,6 +168,12 @@ Baseline+CBAM+BiFPN+Focal
 FullModel
 ```
 
+其中 FullModel 当前定义为：
+
+```text
+GhostConv + CBAM + BiFPN + Decoupled Head + Focal Loss
+```
+
 自动导出内容包括：
 
 - `reports/ablation/summary.csv`
@@ -197,10 +203,11 @@ FullModel
 
 ```text
 YOLOv8n Backbone
+  + GhostConv replacing selected downsampling Conv layers
   + CBAM attention after backbone C2f blocks
   + SPPF
   + BiFPN Neck replacing PAN-FPN
-  + YOLO Detect head
+  + DecoupledDetect head with separated regression/classification towers
   + Focal Loss for classification branch during training
 ```
 
@@ -209,20 +216,22 @@ YOLOv8n Backbone
 | 文件 | 作用 |
 | --- | --- |
 | `configs/full_model.yaml` | FullModel 训练配置 |
-| `models/yolov8n_cbam_bifpn.yaml` | CBAM Backbone + BiFPN Neck 模型结构 |
+| `models/yolov8n_full.yaml` | GhostConv + CBAM + BiFPN + Decoupled Head 模型结构 |
+| `models/yolov8n_ghost.yaml` | GhostConv 轻量化骨干单独结构 |
+| `models/yolov8n_decoupled.yaml` | Decoupled Head 单独结构 |
 | `models/modules/cbam.py` | CBAM 注意力模块 |
 | `models/modules/bifpn.py` | BiFPN 加权融合模块 |
+| `models/modules/decoupled_head.py` | Decoupled Head 解耦检测头 |
 | `models/losses/focal_loss.py` | Focal Loss 分类损失替换 |
 
-当前 FullModel 不包含 GhostConv 与 Decoupled Head。为了保持实验边界清晰，这两个模块应在后续阶段独立实现、独立测试，并重新加入消融实验。
+FullModel 已完成 1 epoch CUDA smoke 训练验证，日志显示使用 `CUDA:0 (NVIDIA GeForce RTX 4060 Laptop GPU)`，可以正常完成训练、验证和权重保存。该 smoke 结果只用于验证链路，正式指标仍需按统一 100 epoch 消融实验生成。
 
 ## 10. 下一阶段规划
 
 1. 完整运行 5 组消融实验，使用统一 `epochs=100`、`imgsz=640` 和相同数据划分，生成正式 `summary.csv`、`summary.xlsx` 与曲线图。
 2. 基于正式消融结果选择最终模型权重，并补充 PR 曲线、Loss 曲线、mAP 曲线、混淆矩阵等报告素材。
-3. 实现 GhostConv，评估参数量、推理速度和精度变化。
-4. 实现 Decoupled Head，验证分类与回归解耦后的检测性能。
-5. 增加 `evaluate.py`、`benchmark.py`、`export.py`，补齐评估、测速和模型导出流程。
-6. 开发摄像头实时检测与自动计数功能。
-7. 推进 Web 端与 Raspberry Pi 部署，验证 CPU/GPU/边缘设备运行能力。
-8. 整理最终实验报告，统一呈现 Baseline、各改进模块和 FullModel 的对比结果。
+3. 对 GhostConv 与 Decoupled Head 的独立实验进行补充训练，评估参数量、推理速度、收敛速度和精度变化。
+4. 使用 `evaluate.py`、`benchmark.py`、`export.py` 补齐评估、测速和模型导出结果。
+5. 开发或完善摄像头实时检测与自动计数功能。
+6. 推进 Web 端与 Raspberry Pi 部署，验证 CPU/GPU/边缘设备运行能力。
+7. 整理最终实验报告，统一呈现 Baseline、各改进模块和 FullModel 的对比结果。

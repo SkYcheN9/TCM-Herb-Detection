@@ -35,6 +35,8 @@ class Experiment:
     enable_cbam: bool
     enable_bifpn: bool
     enable_focal_loss: bool
+    enable_ghostconv: bool
+    enable_decoupled_head: bool
 
 
 EXPERIMENTS = [
@@ -46,6 +48,8 @@ EXPERIMENTS = [
         enable_cbam=False,
         enable_bifpn=False,
         enable_focal_loss=False,
+        enable_ghostconv=False,
+        enable_decoupled_head=False,
     ),
     Experiment(
         key="cbam",
@@ -55,6 +59,8 @@ EXPERIMENTS = [
         enable_cbam=True,
         enable_bifpn=False,
         enable_focal_loss=False,
+        enable_ghostconv=False,
+        enable_decoupled_head=False,
     ),
     Experiment(
         key="cbam_bifpn",
@@ -64,6 +70,8 @@ EXPERIMENTS = [
         enable_cbam=True,
         enable_bifpn=True,
         enable_focal_loss=False,
+        enable_ghostconv=False,
+        enable_decoupled_head=False,
     ),
     Experiment(
         key="cbam_bifpn_focal",
@@ -73,6 +81,8 @@ EXPERIMENTS = [
         enable_cbam=True,
         enable_bifpn=True,
         enable_focal_loss=True,
+        enable_ghostconv=False,
+        enable_decoupled_head=False,
     ),
     Experiment(
         key="full_model",
@@ -82,6 +92,8 @@ EXPERIMENTS = [
         enable_cbam=True,
         enable_bifpn=True,
         enable_focal_loss=True,
+        enable_ghostconv=True,
+        enable_decoupled_head=True,
     ),
 ]
 
@@ -174,12 +186,13 @@ def run_training(args: argparse.Namespace, experiment: Experiment, runs_dir: Pat
 def register_for_experiment(experiment: Experiment) -> None:
     """Register custom modules needed to load or validate an experiment."""
 
-    if experiment.enable_cbam or experiment.enable_bifpn:
+    if experiment.enable_cbam or experiment.enable_bifpn or experiment.enable_decoupled_head:
         from models.modules import register_ultralytics_modules
 
         register_ultralytics_modules(
             enable_cbam=experiment.enable_cbam,
             enable_bifpn=experiment.enable_bifpn,
+            enable_decoupled_head=experiment.enable_decoupled_head,
         )
     if experiment.enable_focal_loss:
         from models.losses import register_focal_loss

@@ -1,6 +1,6 @@
 # TCM-SliceAI YOLOv8 训练与消融实验
 
-当前已完成数据集规范化、Ultralytics YOLOv8 Baseline 训练入口、可选 CBAM 注意力模块、可选 BiFPN Neck，以及可选 Focal Loss。不包含 GhostConv 等其他改进。
+当前已完成数据集规范化、Ultralytics YOLOv8 Baseline 训练入口，以及 5 个实质性改进方向：CBAM 注意力、BiFPN Neck、Focal Loss、GhostConv 轻量化骨干、Decoupled Head 解耦检测头。
 
 ## 已完成内容
 
@@ -14,7 +14,9 @@
 - 新增 CBAM 模块与 YOLOv8n-CBAM 结构，默认不影响 Baseline
 - 新增 BiFPN Neck，可替换原 YOLOv8 PAN-FPN
 - 新增 Focal Loss，可替换 YOLOv8 原始分类 BCE 损失
-- 通过 `enable_cbam`、`enable_bifpn`、`enable_focal_loss` 配置切换训练路径和损失函数
+- 新增 GhostConv 轻量化骨干，替换部分 Backbone 下采样 Conv
+- 新增 Decoupled Head，显式拆分分类分支与回归分支
+- 通过 `enable_cbam`、`enable_bifpn`、`enable_focal_loss`、`enable_ghostconv`、`enable_decoupled_head` 配置切换训练路径和损失函数
 
 ## 固定类别顺序
 
@@ -55,10 +57,22 @@ python -m venv .venv
 .\.venv\Scripts\python.exe scripts/check_dataset.py --images data/images --labels data/labels
 ```
 
+清洗原始数据，检测模糊、无效、重复图片：
+
+```bash
+.\.venv\Scripts\python.exe scripts/clean_dataset.py --images data/images --labels data/labels --output data/cleaned
+```
+
 规范化数据并生成 `data.yaml`：
 
 ```bash
 .\.venv\Scripts\python.exe scripts/prepare_dataset.py --images data/images --labels data/labels --output dataset --mode copy
+```
+
+生成离线增强数据集：
+
+```bash
+.\.venv\Scripts\python.exe scripts/augment_dataset.py --dataset-root dataset --output dataset_augmented --copies 1 --mosaic-count 200 --mixup-count 200
 ```
 
 训练 Baseline：
@@ -97,13 +111,25 @@ python -m venv .venv
 .\.venv\Scripts\python.exe train.py --config configs/cbam_bifpn_focal.yaml
 ```
 
+训练 GhostConv 轻量化骨干版本：
+
+```bash
+.\.venv\Scripts\python.exe train.py --config configs/ghostconv.yaml
+```
+
+训练 Decoupled Head 版本：
+
+```bash
+.\.venv\Scripts\python.exe train.py --config configs/decoupled_head.yaml
+```
+
 训练当前 FullModel：
 
 ```bash
 .\.venv\Scripts\python.exe train.py --config configs/full_model.yaml
 ```
 
-当前 FullModel 等同于已实现模块全集：CBAM + BiFPN + Focal Loss。不包含 GhostConv、Decoupled Head 等尚未实现的后续模块。
+当前 FullModel 等同于已实现模块全集：GhostConv + CBAM + BiFPN + Decoupled Head + Focal Loss。
 
 也可以在命令行显式开启 CBAM：
 
@@ -123,13 +149,21 @@ python -m venv .venv
 .\.venv\Scripts\python.exe train.py --enable-cbam true --enable-bifpn true --enable-focal-loss true --focal-gamma 2.0 --focal-alpha 0.25 --name cbam_bifpn_focal
 ```
 
+命令行也支持显式开启 GhostConv 和 Decoupled Head：
+
+```bash
+.\.venv\Scripts\python.exe train.py --enable-ghostconv true --name ghostconv
+.\.venv\Scripts\python.exe train.py --enable-decoupled-head true --name decoupled_head
+.\.venv\Scripts\python.exe train.py --enable-cbam true --enable-bifpn true --enable-ghostconv true --enable-decoupled-head true --enable-focal-loss true --name full_model
+```
+
 也可以直接运行：
 
 ```bash
 .\.venv\Scripts\python.exe scripts/train_baseline.py
 ```
 
-训练脚本会自动检测 `torch.cuda.is_available()`：可用时使用 GPU `0`，不可用时使用 CPU，并自动调整默认 batch size。Baseline 训练默认输出到 `runs/baseline`，CBAM 输出到 `runs/cbam`，BiFPN 输出到 `runs/bifpn`，CBAM+BiFPN 输出到 `runs/cbam_bifpn`，CBAM+BiFPN+Focal 输出到 `runs/cbam_bifpn_focal`。
+训练脚本会自动检测 `torch.cuda.is_available()`：可用时使用 GPU `0`，不可用时使用 CPU，并自动调整默认 batch size。Baseline 训练默认输出到 `runs/baseline`，CBAM 输出到 `runs/cbam`，BiFPN 输出到 `runs/bifpn`，CBAM+BiFPN 输出到 `runs/cbam_bifpn`，CBAM+BiFPN+Focal 输出到 `runs/cbam_bifpn_focal`，FullModel 输出到 `runs/full_model`。
 
 ## 消融实验
 
@@ -146,7 +180,7 @@ Baseline
 Baseline+CBAM
 Baseline+CBAM+BiFPN
 Baseline+CBAM+BiFPN+Focal
-FullModel
+FullModel (GhostConv+CBAM+BiFPN+DecoupledHead+Focal)
 ```
 
 消融实验输出保存到 `reports/ablation`：
@@ -176,6 +210,32 @@ FullModel
 
 ```bash
 .\.venv\Scripts\python.exe scripts/ablation.py --skip-train
+```
+
+## 评估、测速与部署
+
+验证模型并导出指标与混淆矩阵：
+
+```bash
+.\.venv\Scripts\python.exe evaluate.py --weights runs/baseline/weights/best.pt --data dataset/data.yaml
+```
+
+测试 CPU/GPU 推理速度：
+
+```bash
+.\.venv\Scripts\python.exe benchmark.py --weights runs/baseline/weights/best.pt --devices auto,cpu
+```
+
+导出 `.pt`、`.onnx`、`.torchscript`、OpenVINO、NCNN：
+
+```bash
+.\.venv\Scripts\python.exe export.py --weights runs/baseline/weights/best.pt --output exports/pi
+```
+
+打包 Raspberry Pi 部署目录：
+
+```bash
+.\.venv\Scripts\python.exe deploy_pi.py --weights runs/baseline/weights/best.pt --output dist/raspberry_pi --zip
 ```
 
 ## 当前数据检查结果

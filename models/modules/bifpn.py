@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import inspect
-
 import torch
 from torch import nn
 import torch.nn.functional as F
+
+from .parser_patch import patch_parse_model
 
 
 class SeparableConvBlock(nn.Module):
@@ -84,20 +84,20 @@ def register_ultralytics_modules() -> None:
     import ultralytics.nn.tasks as tasks
 
     tasks.BiFPNFusion = BiFPNFusion
-    if getattr(tasks.parse_model, "_tcm_bifpn_patched", False):
-        return
 
-    source = inspect.getsource(tasks.parse_model)
-    anchor = "        elif m is AIFI:"
-    patch = (
-        "        elif m is BiFPNFusion:\n"
-        "            c2 = args[0]\n"
-        "            if c2 != nc:\n"
-        "                c2 = make_divisible(min(c2, max_channels) * width, 8)\n"
-        "            args = [len(f) if isinstance(f, list) else 1, c2, *args[1:]]\n"
-    )
-    if anchor not in source:
-        raise RuntimeError("Unable to patch Ultralytics parser for BiFPNFusion")
+    def transform(source: str) -> str:
+        anchor = "        elif m is AIFI:"
+        patch = (
+            "        elif m is BiFPNFusion:\n"
+            "            c2 = args[0]\n"
+            "            if c2 != nc:\n"
+            "                c2 = make_divisible(min(c2, max_channels) * width, 8)\n"
+            "            args = [len(f) if isinstance(f, list) else 1, c2, *args[1:]]\n"
+        )
+        if "elif m is BiFPNFusion" in source:
+            return source
+        if anchor not in source:
+            raise RuntimeError("Unable to patch Ultralytics parser for BiFPNFusion")
+        return source.replace(anchor, patch + anchor)
 
-    exec(source.replace(anchor, patch + anchor), tasks.__dict__)
-    tasks.parse_model._tcm_bifpn_patched = True
+    patch_parse_model("BiFPNFusion", transform)

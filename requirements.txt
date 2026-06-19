@@ -1,5 +1,7 @@
 ultralytics>=8.0.0
 PyYAML>=6.0
+opencv-python>=4.8.0
+albumentations>=1.4.0
 
 # CPU fallback:
 # python -m pip install torch torchvision

@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     """Parse export options."""
 
     parser = argparse.ArgumentParser(
-        description="Export best.pt, best.onnx and best_openvino/ for Raspberry Pi 5."
+        description="Export best.pt, best.onnx, best.torchscript, best_openvino/ and best_ncnn_model/."
     )
     parser.add_argument(
         "--weights",
@@ -48,6 +48,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--half", action="store_true", help="Export FP16 where the backend supports it.")
     parser.add_argument("--skip-openvino", action="store_true", help="Only export best.pt and best.onnx.")
     parser.add_argument("--skip-onnx", action="store_true", help="Only export best.pt and best_openvino/.")
+    parser.add_argument("--skip-torchscript", action="store_true", help="Skip TorchScript export.")
+    parser.add_argument("--skip-ncnn", action="store_true", help="Skip NCNN export.")
     return parser.parse_args()
 
 
@@ -128,7 +130,9 @@ def export_model(args: argparse.Namespace) -> dict[str, Any]:
 
     best_pt = output_dir / "best.pt"
     best_onnx = output_dir / "best.onnx"
+    best_torchscript = output_dir / "best.torchscript"
     best_openvino = output_dir / "best_openvino"
+    best_ncnn = output_dir / "best_ncnn_model"
 
     if weights.resolve() != best_pt.resolve():
         shutil.copy2(weights, best_pt)
@@ -155,6 +159,15 @@ def export_model(args: argparse.Namespace) -> dict[str, Any]:
         )
         artifacts["best_onnx"] = str(move_exported_path(exported_onnx, best_onnx))
 
+    if not args.skip_torchscript:
+        exported_torchscript = model.export(
+            format="torchscript",
+            imgsz=args.imgsz,
+            optimize=False,
+            half=args.half,
+        )
+        artifacts["best_torchscript"] = str(move_exported_path(exported_torchscript, best_torchscript))
+
     if not args.skip_openvino:
         exported_openvino = model.export(
             format="openvino",
@@ -164,6 +177,14 @@ def export_model(args: argparse.Namespace) -> dict[str, Any]:
             int8=False,
         )
         artifacts["best_openvino"] = str(move_exported_path(exported_openvino, best_openvino))
+
+    if not args.skip_ncnn:
+        exported_ncnn = model.export(
+            format="ncnn",
+            imgsz=args.imgsz,
+            half=args.half,
+        )
+        artifacts["best_ncnn"] = str(move_exported_path(exported_ncnn, best_ncnn))
 
     manifest_path = output_dir / "export_manifest.json"
     manifest_path.write_text(
