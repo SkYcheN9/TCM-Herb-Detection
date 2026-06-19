@@ -36,6 +36,7 @@ env/
 /reports/ablation/*.xlsx
 /reports/desktop/
 /src/desktop/data/
+/backend/data/
 *.pt
 *.onnx
 *.torchscript
