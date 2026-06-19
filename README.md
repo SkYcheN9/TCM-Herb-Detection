@@ -1,6 +1,6 @@
-# TCM-SliceAI Phase 1
+# TCM-SliceAI Phase 1 + CBAM
 
-本阶段只完成数据集规范化与 Ultralytics YOLOv8 Baseline 训练入口，不包含 CBAM、BiFPN、Focal Loss、GhostConv 等后续改进。
+当前已完成数据集规范化、Ultralytics YOLOv8 Baseline 训练入口，以及可选 CBAM 注意力模块。不包含 BiFPN、Focal Loss、GhostConv 等其他改进。
 
 ## 已完成内容
 
@@ -11,6 +11,8 @@
 - 自动生成 `dataset/data.yaml`
 - 提供 YOLOv8 Baseline 训练脚本，CUDA 可用时优先 GPU，否则回退 CPU
 - 训练输出目录固定为 `runs/baseline`
+- 新增 CBAM 模块与 YOLOv8n-CBAM 结构，默认不影响 Baseline
+- 通过 `enable_cbam` 配置切换 Baseline/CBAM 训练路径
 
 ## 固定类别顺序
 
@@ -63,13 +65,31 @@ python -m venv .venv
 .\.venv\Scripts\python.exe train.py --data dataset/data.yaml --model yolov8n.pt --epochs 100 --imgsz 640
 ```
 
+也可以使用配置文件训练 Baseline：
+
+```bash
+.\.venv\Scripts\python.exe train.py --config configs/baseline.yaml
+```
+
+训练 CBAM 版本：
+
+```bash
+.\.venv\Scripts\python.exe train.py --config configs/cbam.yaml
+```
+
+也可以在命令行显式开启 CBAM：
+
+```bash
+.\.venv\Scripts\python.exe train.py --enable-cbam true --model models/yolov8n_cbam.yaml --name cbam
+```
+
 也可以直接运行：
 
 ```bash
 .\.venv\Scripts\python.exe scripts/train_baseline.py
 ```
 
-训练脚本会自动检测 `torch.cuda.is_available()`：可用时使用 GPU `0`，不可用时使用 CPU，并自动调整默认 batch size。
+训练脚本会自动检测 `torch.cuda.is_available()`：可用时使用 GPU `0`，不可用时使用 CPU，并自动调整默认 batch size。CBAM 训练默认输出到 `runs/cbam`，Baseline 训练默认输出到 `runs/baseline`。
 
 ## 当前数据检查结果
 

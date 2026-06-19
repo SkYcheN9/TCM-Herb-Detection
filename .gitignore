@@ -18,6 +18,7 @@ env/
 !/dataset/labels/train/.gitkeep
 /dataset/labels/val/*
 !/dataset/labels/val/.gitkeep
+/dataset/labels/*.cache
 
 /runs/*
 !/runs/.gitkeep

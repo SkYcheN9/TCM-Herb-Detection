@@ -6,27 +6,72 @@ import argparse
 import pickle
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
 
 from tcm_slice_ai.dataset import check_split_dataset
+
+
+def load_yaml_config(path: str | None) -> dict[str, Any]:
+    """Load an optional training config YAML file."""
+
+    if path is None:
+        return {}
+    import yaml
+
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = ROOT / config_path
+    return yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+
+
+def config_value(
+    args: argparse.Namespace,
+    config: dict[str, Any],
+    name: str,
+    default: Any,
+) -> Any:
+    """Return CLI value unless it is unset, otherwise fall back to config."""
+
+    value = getattr(args, name)
+    if value is not None:
+        return value
+    return config.get(name, default)
+
+
+def str_to_bool(value: str | bool | None) -> bool:
+    """Parse common CLI/config boolean values."""
+
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return value.lower() in {"1", "true", "yes", "y", "on"}
 
 
 def parse_args() -> argparse.Namespace:
     """Parse training arguments."""
 
     parser = argparse.ArgumentParser(description="Train YOLOv8 baseline.")
-    parser.add_argument("--data", default="dataset/data.yaml")
-    parser.add_argument("--model", default="yolov8n.pt")
-    parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--imgsz", type=int, default=640)
+    parser.add_argument("--config", default=None)
+    parser.add_argument("--data", default=None)
+    parser.add_argument("--model", default=None)
+    parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--imgsz", type=int, default=None)
     parser.add_argument("--batch", type=int, default=None)
-    parser.add_argument("--workers", type=int, default=4)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--device", default="auto", help="auto, cpu, or CUDA id such as 0")
-    parser.add_argument("--project", default="runs")
-    parser.add_argument("--name", default="baseline")
+    parser.add_argument("--workers", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--device", default=None, help="auto, cpu, or CUDA id such as 0")
+    parser.add_argument("--project", default=None)
+    parser.add_argument("--name", default=None)
+    parser.add_argument(
+        "--enable-cbam",
+        default=None,
+        help="Enable the CBAM model path. Accepts true/false.",
+    )
     parser.add_argument(
         "--skip-dataset-check",
         action="store_true",
@@ -53,23 +98,59 @@ def resolve_device(device_arg: str) -> str:
     return "cpu"
 
 
-def default_batch_size(device: str, requested: int | None) -> int:
+def default_batch_size(
+    device: str,
+    requested: int | None,
+    config: dict[str, Any],
+) -> int:
     """Choose a conservative batch size for GPU or CPU training."""
 
     if requested is not None:
         return requested
     if device == "cpu":
-        return 4
-    return 16
+        return int(config.get("batch_cpu", 4))
+    return int(config.get("batch_gpu", 16))
 
 
 def main() -> int:
     """Run Ultralytics YOLOv8 training."""
 
     args = parse_args()
-    data_path = Path(args.data)
+    config = load_yaml_config(args.config)
+    enable_cbam_cli_supplied = args.enable_cbam is not None
+    enable_cbam = str_to_bool(
+        args.enable_cbam if enable_cbam_cli_supplied else config.get("enable_cbam")
+    )
+    default_model = "models/yolov8n_cbam.yaml" if enable_cbam else "yolov8n.pt"
+    default_name = "cbam" if enable_cbam else "baseline"
+
+    data_path = Path(config_value(args, config, "data", "dataset/data.yaml"))
+    if args.model is not None:
+        model_path = args.model
+    elif enable_cbam_cli_supplied:
+        model_path = default_model
+    else:
+        model_path = config.get("model", default_model)
+    epochs = int(config_value(args, config, "epochs", 100))
+    imgsz = int(config_value(args, config, "imgsz", 640))
+    workers = int(config_value(args, config, "workers", 4))
+    seed = int(config_value(args, config, "seed", 42))
+    device_arg = config_value(args, config, "device", "auto")
+    project_arg = config_value(args, config, "project", "runs")
+    if args.name is not None:
+        name = args.name
+    elif enable_cbam_cli_supplied:
+        name = default_name
+    else:
+        name = config.get("name", default_name)
+
+    if enable_cbam:
+        from models.modules import register_ultralytics_modules
+
+        register_ultralytics_modules()
+
     dataset_root = data_path.parent
-    project_path = Path(args.project)
+    project_path = Path(project_arg)
     if not project_path.is_absolute():
         project_path = ROOT / project_path
 
@@ -91,31 +172,32 @@ def main() -> int:
             "python -m pip install -r requirements.txt"
         ) from exc
 
-    device = resolve_device(args.device)
-    batch = default_batch_size(device, args.batch)
+    device = resolve_device(device_arg)
+    batch = default_batch_size(device, args.batch, config)
     print(f"Training device: {device}")
     print(f"Batch size: {batch}")
-    print(f"Output: {project_path / args.name}")
+    print(f"CBAM enabled: {enable_cbam}")
+    print(f"Output: {project_path / name}")
 
     try:
-        model = YOLO(args.model)
+        model = YOLO(model_path)
     except (EOFError, pickle.UnpicklingError) as exc:
         raise RuntimeError(
-            f"Model weights look incomplete or corrupted: {args.model}. "
+            f"Model weights look incomplete or corrupted: {model_path}. "
             "Delete the local .pt file and run again so Ultralytics can "
             "download a fresh copy."
         ) from exc
 
     model.train(
         data=str(data_path),
-        epochs=args.epochs,
-        imgsz=args.imgsz,
+        epochs=epochs,
+        imgsz=imgsz,
         batch=batch,
-        workers=args.workers,
-        seed=args.seed,
+        workers=workers,
+        seed=seed,
         device=device,
         project=str(project_path),
-        name=args.name,
+        name=name,
         exist_ok=True,
     )
     return 0
