@@ -30,7 +30,7 @@ def export_records_to_excel(records: list[DetectionRecord], output_path: Path | 
         "输出文件",
         "模型",
         "设备",
-        "FPS",
+        "性能",
         "总数量",
         "类别统计",
         "状态",
@@ -55,7 +55,7 @@ def export_records_to_excel(records: list[DetectionRecord], output_path: Path | 
                 record.output_path,
                 record.model_path,
                 record.device,
-                round(record.fps, 2),
+                _format_performance(record),
                 record.total_count,
                 classes,
                 record.status,
@@ -69,4 +69,10 @@ def export_records_to_excel(records: list[DetectionRecord], output_path: Path | 
     sheet.freeze_panes = "A2"
     workbook.save(path)
     return path
+
+
+def _format_performance(record: DetectionRecord) -> str:
+    if record.performance_unit.lower() == "ms":
+        return f"{record.fps:.0f} ms"
+    return f"{record.fps:.1f} FPS"
 

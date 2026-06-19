@@ -153,33 +153,43 @@ class VideoPanel(QFrame):
         self.video_label.setAlignment(Qt.AlignCenter)
         self.video_label.setMinimumSize(640, 360)
         self.video_label.setScaledContents(False)
+        self.video_label.hide()
 
         self.empty_title = QLabel(title, self)
         self.empty_title.setObjectName("previewTitle")
         self.empty_title.setAlignment(Qt.AlignCenter)
+        self.empty_title.setStyleSheet("color: #F8FAFC; font-size: 18px; font-weight: 700;")
 
         self.empty_subtitle = BodyLabel(subtitle, self)
         self.empty_subtitle.setObjectName("mutedLabel")
         self.empty_subtitle.setAlignment(Qt.AlignCenter)
         self.empty_subtitle.setWordWrap(True)
+        self.empty_subtitle.setStyleSheet("color: rgba(248, 250, 252, 0.72);")
+
+        self.empty_container = QWidget(self)
+        empty_layout = QVBoxLayout(self.empty_container)
+        empty_layout.setContentsMargins(0, 0, 0, 0)
+        empty_layout.setSpacing(10)
+        empty_layout.setAlignment(Qt.AlignCenter)
+        empty_layout.addWidget(self.empty_title)
+        empty_layout.addWidget(self.empty_subtitle)
 
         self.layout.addWidget(self.video_label, 1)
-        self.layout.addWidget(self.empty_title)
-        self.layout.addWidget(self.empty_subtitle)
+        self.layout.addWidget(self.empty_container, 1)
 
     def set_frame(self, pixmap: QPixmap) -> None:
         """Display a new camera frame."""
         self._pixmap = pixmap
-        self.empty_title.hide()
-        self.empty_subtitle.hide()
+        self.empty_container.hide()
+        self.video_label.show()
         self._update_pixmap()
 
     def clear_frame(self) -> None:
         """Return the surface to its empty state."""
         self._pixmap = QPixmap()
         self.video_label.clear()
-        self.empty_title.show()
-        self.empty_subtitle.show()
+        self.video_label.hide()
+        self.empty_container.show()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

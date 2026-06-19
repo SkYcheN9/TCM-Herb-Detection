@@ -129,6 +129,7 @@ class CameraDetectorThread(QThread):
                     model_path=str(self.model_path),
                     device="CUDA:0" if device == 0 else "CPU",
                     fps=last_fps,
+                    performance_unit="FPS",
                     total_count=sum(merged_counts.values()),
                     class_counts=merged_counts,
                     status="已停止",

@@ -31,18 +31,24 @@ class DashboardView(Page):
 
         eyebrow = CaptionLabel("INDUSTRIAL VISION WORKSTATION", hero)
         eyebrow.setObjectName("eyebrowLabel")
+        eyebrow.setStyleSheet("color: #7CE7F4; font-weight: 700;")
         title = SubtitleLabel("TCM-SliceAI Detection Console", hero)
+        title.setObjectName("heroTitle")
+        title.setStyleSheet("color: #F8FAFC; font-size: 22px; font-weight: 700;")
         detail = BodyLabel(
             "面向 15 类中医药饮片的检测、计数与结果追踪。当前阶段已完成训练侧 Phase 1，桌面端正在进入客户端开发。",
             hero,
         )
-        detail.setObjectName("mutedLabel")
+        detail.setObjectName("heroBody")
+        detail.setStyleSheet("color: rgba(248, 250, 252, 0.88); font-size: 15px;")
         detail.setWordWrap(True)
 
         actions = QHBoxLayout()
         actions.setSpacing(10)
-        actions.addWidget(PrimaryPushButton(FIF.CAMERA, "进入检测", hero))
-        actions.addWidget(PushButton(FIF.HISTORY, "查看历史", hero))
+        self.detect_button = PrimaryPushButton(FIF.CAMERA, "进入检测", hero)
+        self.history_button = PushButton(FIF.HISTORY, "查看历史", hero)
+        actions.addWidget(self.detect_button)
+        actions.addWidget(self.history_button)
         actions.addStretch(1)
 
         left.addWidget(eyebrow)
@@ -108,7 +114,8 @@ class _StatusPill(QFrame):
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(8)
         title_label = CaptionLabel(title, self)
-        title_label.setObjectName("mutedLabel")
+        title_label.setObjectName("heroMeta")
+        title_label.setStyleSheet("color: rgba(248, 250, 252, 0.82);")
         value_label = QLabel(value, self)
         value_label.setObjectName(style_name)
         value_label.setAlignment(Qt.AlignCenter)

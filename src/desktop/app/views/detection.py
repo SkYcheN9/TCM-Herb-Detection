@@ -18,6 +18,7 @@ from qfluentwidgets import (
     PrimaryPushButton,
     PushButton,
     Slider,
+    SmoothScrollArea,
     SpinBox,
     SwitchButton,
 )
@@ -59,10 +60,13 @@ class DetectionView(Page):
         )
         workspace.addWidget(self.video_panel, 3)
 
-        side = QVBoxLayout()
+        side_container = QWidget(self)
+        side = QVBoxLayout(side_container)
+        side.setContentsMargins(0, 0, 0, 0)
         side.setSpacing(14)
 
         self.source_card = SectionCard("输入源", self)
+        self.source_card.setMinimumHeight(250)
         source_grid = QGridLayout()
         source_grid.setHorizontalSpacing(10)
         source_grid.setVerticalSpacing(10)
@@ -114,11 +118,19 @@ class DetectionView(Page):
 
         self.conf_slider = Slider(Qt.Horizontal, self.params_card)
         self.conf_slider.setRange(1, 100)
-        self.conf_slider.setValue(35)
+        self.conf_slider.setValue(55)
+        self.conf_value = QLabel("0.55", self.params_card)
+        self.conf_value.setObjectName("valueBadge")
+        self.conf_value.setAlignment(Qt.AlignCenter)
+        self.conf_value.setMinimumWidth(54)
 
         self.iou_slider = Slider(Qt.Horizontal, self.params_card)
         self.iou_slider.setRange(1, 100)
         self.iou_slider.setValue(45)
+        self.iou_value = QLabel("0.45", self.params_card)
+        self.iou_value.setObjectName("valueBadge")
+        self.iou_value.setAlignment(Qt.AlignCenter)
+        self.iou_value.setMinimumWidth(54)
 
         self.size_spin = SpinBox(self.params_card)
         self.size_spin.setRange(320, 1280)
@@ -127,10 +139,12 @@ class DetectionView(Page):
 
         params_grid.addWidget(BodyLabel("置信度", self.params_card), 0, 0)
         params_grid.addWidget(self.conf_slider, 0, 1)
+        params_grid.addWidget(self.conf_value, 0, 2)
         params_grid.addWidget(BodyLabel("IoU", self.params_card), 1, 0)
         params_grid.addWidget(self.iou_slider, 1, 1)
+        params_grid.addWidget(self.iou_value, 1, 2)
         params_grid.addWidget(BodyLabel("图像尺寸", self.params_card), 2, 0)
-        params_grid.addWidget(self.size_spin, 2, 1)
+        params_grid.addWidget(self.size_spin, 2, 1, 1, 2)
         self.params_card.layout.addLayout(params_grid)
 
         self.options_card = SectionCard("保存与显示", self)
@@ -144,13 +158,17 @@ class DetectionView(Page):
         self.options_card.layout.addWidget(self.record_switch)
 
         self.status_card = SectionCard("实时状态", self)
+        self.status_card.setMinimumHeight(210)
         status_grid = QGridLayout()
         status_grid.setHorizontalSpacing(10)
-        status_grid.setVerticalSpacing(12)
+        status_grid.setVerticalSpacing(10)
+        status_grid.setColumnStretch(0, 0)
+        status_grid.setColumnStretch(1, 1)
 
         self.status_value = QLabel("待机", self.status_card)
         self.status_value.setObjectName("statusPill")
         self.status_value.setAlignment(Qt.AlignCenter)
+        self.status_value.setMinimumWidth(140)
 
         self.fps_value = _MetricValue("0.0 FPS", self.status_card)
         self.total_value = _MetricValue("0", self.status_card)
@@ -159,10 +177,11 @@ class DetectionView(Page):
         self.gpu_value = BodyLabel(query_gpu_status().text, self.status_card)
         self.gpu_value.setObjectName("mutedLabel")
         self.gpu_value.setWordWrap(True)
+        self.gpu_value.setMinimumWidth(220)
 
         status_grid.addWidget(BodyLabel("状态", self.status_card), 0, 0)
         status_grid.addWidget(self.status_value, 0, 1)
-        status_grid.addWidget(BodyLabel("FPS", self.status_card), 1, 0)
+        status_grid.addWidget(BodyLabel("性能", self.status_card), 1, 0)
         status_grid.addWidget(self.fps_value, 1, 1)
         status_grid.addWidget(BodyLabel("总数量", self.status_card), 2, 0)
         status_grid.addWidget(self.total_value, 2, 1)
@@ -198,14 +217,22 @@ class DetectionView(Page):
         side.addLayout(run_buttons)
         side.addStretch(1)
 
-        workspace.addLayout(side, 2)
+        side_scroll = SmoothScrollArea(self)
+        side_scroll.setWidget(side_container)
+        side_scroll.setWidgetResizable(True)
+        side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        side_scroll.setMinimumWidth(430)
+        workspace.addWidget(side_scroll, 2)
         self.root_layout.addLayout(workspace, 1)
 
         self.mode_selector.currentIndexChanged.connect(self._update_mode_controls)
+        self.conf_slider.valueChanged.connect(self._update_threshold_labels)
+        self.iou_slider.valueChanged.connect(self._update_threshold_labels)
         self.pick_file_button.clicked.connect(self.pick_source_file)
         self.start_button.clicked.connect(self.start_detection)
         self.stop_button.clicked.connect(self.stop_detection)
         self.open_output_button.clicked.connect(self.open_last_output)
+        self._update_threshold_labels()
         self._update_mode_controls()
 
     def start_detection(self) -> None:
@@ -359,7 +386,7 @@ class DetectionView(Page):
             self.update_frame(result.frame)
         self.last_output_path = result.output_path
         self.open_output_button.setEnabled(True)
-        self.fps_value.setText(f"{result.fps:.1f} FPS")
+        self.fps_value.setText(self._format_performance(result.mode, result.fps))
         self.total_value.setText(str(result.total_count))
         self.progress_value.setText(str(result.output_path))
         self.gpu_value.setText(query_gpu_status().text)
@@ -417,6 +444,21 @@ class DetectionView(Page):
         else:
             selected = self.selected_image_path if mode == "图片检测" else self.selected_video_path
             self.file_path.setText(str(selected) if selected else "")
+        self.fps_value.setText("耗时 -" if mode == "图片检测" else "0.0 FPS")
+        if mode == "摄像头检测":
+            self.progress_value.setText("请将药材样本置于摄像头画面内，非药材画面可能产生误检。")
+        else:
+            self.progress_value.setText("-")
+
+    def _update_threshold_labels(self) -> None:
+        self.conf_value.setText(f"{self.conf_slider.value() / 100:.2f}")
+        self.iou_value.setText(f"{self.iou_slider.value() / 100:.2f}")
+
+    @staticmethod
+    def _format_performance(mode: str, value: float) -> str:
+        if mode == "图片检测":
+            return f"{value:.0f} ms"
+        return f"{value:.1f} FPS"
 
     def _ensure_model(self) -> bool:
         if self.model_candidate:

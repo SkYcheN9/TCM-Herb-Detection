@@ -60,6 +60,7 @@ def detect_image(
         verbose=False,
     )[0]
     elapsed = max(time.perf_counter() - started, 1e-6)
+    latency_ms = elapsed * 1000
 
     annotated = result.plot()
     output_path = IMAGE_OUTPUT_DIR / f"{image_path.stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
@@ -72,7 +73,7 @@ def detect_image(
         output_path=output_path,
         model_path=model_path,
         device="CUDA:0" if device == 0 else "CPU",
-        fps=1.0 / elapsed,
+        fps=latency_ms,
         total_count=sum(counts.values()),
         class_counts=counts,
         frame=_bgr_to_qimage(annotated),
@@ -229,6 +230,7 @@ def _save_summary(summary: DetectionSummary, status: str = "完成") -> None:
         model_path=str(summary.model_path),
         device=summary.device,
         fps=summary.fps,
+        performance_unit="ms" if summary.mode == "图片检测" else "FPS",
         total_count=summary.total_count,
         class_counts=summary.class_counts,
         status=status,

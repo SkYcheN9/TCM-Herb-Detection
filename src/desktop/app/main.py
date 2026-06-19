@@ -22,7 +22,7 @@ def main() -> int:
     translator = FluentTranslator()
     app.installTranslator(translator)
 
-    setTheme(Theme.DARK)
+    setTheme(Theme.LIGHT)
     setThemeColor("#15A3B8")
 
     window = MainWindow()

@@ -24,6 +24,7 @@ class DetectionRecord:
     model_path: str
     device: str
     fps: float
+    performance_unit: str
     total_count: int
     class_counts: dict[str, int]
     status: str
@@ -46,6 +47,7 @@ class HistoryStore:
         model_path: str,
         device: str,
         fps: float,
+        performance_unit: str = "FPS",
         total_count: int,
         class_counts: dict[str, int],
         status: str = "完成",
@@ -57,9 +59,9 @@ class HistoryStore:
                 """
                 INSERT INTO detection_records (
                     created_at, mode, source_path, output_path, model_path,
-                    device, fps, total_count, class_counts, status
+                    device, fps, performance_unit, total_count, class_counts, status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     created_at,
@@ -69,6 +71,7 @@ class HistoryStore:
                     model_path,
                     device,
                     fps,
+                    performance_unit,
                     total_count,
                     json.dumps(class_counts, ensure_ascii=False),
                     status,
@@ -82,7 +85,7 @@ class HistoryStore:
             rows = conn.execute(
                 """
                 SELECT id, created_at, mode, source_path, output_path, model_path,
-                       device, fps, total_count, class_counts, status
+                       device, fps, performance_unit, total_count, class_counts, status
                 FROM detection_records
                 ORDER BY id DESC
                 LIMIT ?
@@ -127,10 +130,27 @@ class HistoryStore:
                     model_path TEXT NOT NULL,
                     device TEXT NOT NULL,
                     fps REAL NOT NULL,
+                    performance_unit TEXT NOT NULL DEFAULT 'FPS',
                     total_count INTEGER NOT NULL,
                     class_counts TEXT NOT NULL,
                     status TEXT NOT NULL
                 )
+                """
+            )
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(detection_records)").fetchall()
+            }
+            if "performance_unit" not in columns:
+                conn.execute("ALTER TABLE detection_records ADD COLUMN performance_unit TEXT NOT NULL DEFAULT 'FPS'")
+            conn.execute(
+                """
+                UPDATE detection_records
+                SET fps = 1000.0 / fps,
+                    performance_unit = 'ms'
+                WHERE mode = '图片检测'
+                  AND performance_unit = 'FPS'
+                  AND fps > 0
                 """
             )
 
@@ -151,6 +171,7 @@ class HistoryStore:
             model_path=str(row["model_path"]),
             device=str(row["device"]),
             fps=float(row["fps"]),
+            performance_unit=str(row["performance_unit"]),
             total_count=int(row["total_count"]),
             class_counts={str(key): int(value) for key, value in counts.items()},
             status=str(row["status"]),

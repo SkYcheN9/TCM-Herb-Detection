@@ -55,7 +55,7 @@ class HistoryView(Page):
 
         self.table = TableWidget(card)
         self.table.setColumnCount(8)
-        self.table.setHorizontalHeaderLabels(["ID", "时间", "模式", "输入源", "目标数", "类别统计", "FPS", "状态"])
+        self.table.setHorizontalHeaderLabels(["ID", "时间", "模式", "输入源", "目标数", "类别统计", "性能", "状态"])
         self.table.verticalHeader().hide()
         self.table.setMinimumHeight(380)
         card.layout.addWidget(self.table)
@@ -114,7 +114,7 @@ class HistoryView(Page):
                 record.source_path,
                 record.total_count,
                 classes,
-                f"{record.fps:.1f}",
+                self._format_performance(record),
                 record.status,
             ]
             for col_index, value in enumerate(row):
@@ -158,6 +158,12 @@ class HistoryView(Page):
                 or keyword in ", ".join(record.class_counts).lower()
             ]
         return records
+
+    @staticmethod
+    def _format_performance(record: DetectionRecord) -> str:
+        if record.performance_unit.lower() == "ms":
+            return f"{record.fps:.0f} ms"
+        return f"{record.fps:.1f} FPS"
 
     def _show_error(self, title: str, content: str) -> None:
         InfoBar.error(

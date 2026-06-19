@@ -22,8 +22,8 @@ class MainWindow(FluentWindow):
         super().__init__()
         self.setObjectName("mainWindow")
         self.setWindowTitle("TCM-SliceAI")
-        self.resize(1320, 860)
-        self.setMinimumSize(QSize(1080, 720))
+        self.resize(1480, 900)
+        self.setMinimumSize(QSize(1180, 760))
 
         self.dashboard_view = DashboardView(self)
         self.detection_view = DetectionView(self)
@@ -32,6 +32,7 @@ class MainWindow(FluentWindow):
         self.about_view = AboutView(self)
 
         self._init_navigation()
+        self._init_dashboard_actions()
         self.setStyleSheet(APP_STYLE)
 
     def _init_navigation(self) -> None:
@@ -51,6 +52,10 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.BOTTOM,
         )
 
+    def _init_dashboard_actions(self) -> None:
+        self.dashboard_view.detect_button.clicked.connect(lambda: self.switchTo(self.detection_view))
+        self.dashboard_view.history_button.clicked.connect(lambda: self.switchTo(self.history_view))
+
     def closeEvent(self, event: QCloseEvent) -> None:
-        self.detection_view.stop_camera_detection()
+        self.detection_view.stop_detection()
         super().closeEvent(event)

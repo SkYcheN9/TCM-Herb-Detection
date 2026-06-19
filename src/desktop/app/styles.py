@@ -6,6 +6,7 @@ from __future__ import annotations
 APP_STYLE = """
 QWidget {
     font-family: "Segoe UI", "Microsoft YaHei UI";
+    color: #111827;
 }
 
 QWidget#dashboardView,
@@ -13,7 +14,7 @@ QWidget#detectionView,
 QWidget#historyView,
 QWidget#settingsView,
 QWidget#aboutView {
-    background: #101317;
+    background: #F3F6F8;
 }
 
 QWidget#pageContainer {
@@ -25,9 +26,25 @@ QWidget#sectionHeader {
 }
 
 QFrame#heroPanel {
-    background: #141A20;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #111820;
+    border: 1px solid rgba(17, 24, 39, 0.18);
     border-radius: 8px;
+}
+
+QFrame#heroPanel QLabel#heroTitle {
+    color: #F8FAFC;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+QFrame#heroPanel QLabel#heroBody {
+    color: rgba(248, 250, 252, 0.86);
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+QFrame#heroPanel QLabel#heroMeta {
+    color: rgba(248, 250, 252, 0.78);
 }
 
 QFrame#previewPanel {
@@ -36,47 +53,78 @@ QFrame#previewPanel {
     border-radius: 8px;
 }
 
+SmoothScrollArea {
+    background: transparent;
+    border: none;
+}
+
 QFrame#timelineRail {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(17, 24, 39, 0.10);
     border-radius: 2px;
 }
 
+QFrame#heroPanel QLabel,
+QFrame#previewPanel QLabel {
+    color: #F8FAFC;
+}
+
 QLabel#eyebrowLabel {
-    color: #77D8E8;
+    color: #0E9BB0;
     font-size: 12px;
     font-weight: 600;
 }
 
 QLabel#mutedLabel,
 QLabel#metaLabel {
-    color: rgba(255, 255, 255, 0.62);
+    color: #5B6673;
 }
 
 QLabel#metricValue {
-    color: #F7FAFC;
+    color: #111827;
     font-size: 28px;
     font-weight: 700;
 }
 
 QLabel#metricTitle {
-    color: rgba(255, 255, 255, 0.68);
+    color: #5B6673;
     font-size: 12px;
 }
 
+QLabel#valueBadge {
+    color: #0F766E;
+    background: #DDF8EA;
+    border: 1px solid #9DE7C3;
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-weight: 600;
+}
+
 QLabel#statusPill {
-    color: #89F2C8;
-    background: rgba(31, 205, 128, 0.12);
-    border: 1px solid rgba(31, 205, 128, 0.28);
+    color: #047857;
+    background: #DDF8EA;
+    border: 1px solid #9DE7C3;
     border-radius: 8px;
     padding: 5px 10px;
 }
 
+QFrame#heroPanel QLabel#statusPill {
+    color: #065F46;
+    background: #D9FBEA;
+    border: 1px solid #9DE7C3;
+}
+
 QLabel#warningPill {
-    color: #FFD480;
-    background: rgba(255, 181, 71, 0.12);
-    border: 1px solid rgba(255, 181, 71, 0.26);
+    color: #9A5B00;
+    background: #FFF2CC;
+    border: 1px solid #F2C66D;
     border-radius: 8px;
     padding: 5px 10px;
+}
+
+QFrame#heroPanel QLabel#warningPill {
+    color: #8A5A00;
+    background: #FFF0C2;
+    border: 1px solid #F3C86F;
 }
 
 QLabel#previewGlyph {
@@ -91,23 +139,39 @@ QLabel#previewTitle {
 }
 
 QLabel#tagLabel {
-    color: rgba(255, 255, 255, 0.76);
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #334155;
+    background: #EAF1F5;
+    border: 1px solid #D6E0E7;
     border-radius: 8px;
     padding: 6px 9px;
 }
 
+QFrame#heroPanel QLabel#mutedLabel,
+QFrame#previewPanel QLabel#mutedLabel {
+    color: rgba(248, 250, 252, 0.74);
+}
+
+QFrame#heroPanel QLabel#eyebrowLabel {
+    color: #7CE7F4;
+}
+
+QFrame#heroPanel QLabel#tagLabel,
+QFrame#previewPanel QLabel#tagLabel {
+    color: rgba(248, 250, 252, 0.84);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
 QTableWidget {
     background: transparent;
-    color: #F7FAFC;
+    color: #111827;
     border: none;
-    gridline-color: rgba(255, 255, 255, 0.08);
+    gridline-color: #E2E8F0;
 }
 
 QHeaderView::section {
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.72);
+    background: #EAF1F5;
+    color: #334155;
     border: none;
     padding: 8px;
 }
