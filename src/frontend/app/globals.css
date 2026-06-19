@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 40 24% 98%;
+  --foreground: 36 13% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 36 13% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 36 13% 12%;
+  --primary: 160 62% 27%;
+  --primary-foreground: 0 0% 99%;
+  --secondary: 34 18% 91%;
+  --secondary-foreground: 36 13% 16%;
+  --muted: 35 16% 93%;
+  --muted-foreground: 36 7% 42%;
+  --accent: 174 34% 90%;
+  --accent-foreground: 164 54% 18%;
+  --destructive: 4 74% 46%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 34 16% 84%;
+  --input: 34 16% 84%;
+  --ring: 160 62% 27%;
+  --ok: 151 65% 33%;
+  --signal: 21 84% 49%;
+  --graphite: 36 10% 18%;
+  --radius: 0.5rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(246, 244, 239, 0.96)),
+    hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1;
+  letter-spacing: 0;
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.16);
+}
+
+.app-grid {
+  background-image:
+    linear-gradient(hsl(var(--border) / 0.42) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--border) / 0.42) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
