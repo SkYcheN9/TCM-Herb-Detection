@@ -12,6 +12,7 @@ import numpy as np
 from scripts.ablation import (
     EXPERIMENTS,
     SUMMARY_FIELDS,
+    experiment_metadata,
     metric_float,
     precision_recall_curve,
     selected_experiments,
@@ -90,19 +91,58 @@ class AblationTestCase(unittest.TestCase):
         self.assertIn("--focal-loss-type", focal_command)
         self.assertIn("varifocal", focal_command)
 
+    def test_experiment_metadata_records_fairness_controls(self) -> None:
+        args = argparse.Namespace(
+            data="dataset/data.yaml",
+            epochs=150,
+            imgsz=640,
+            batch=16,
+            workers=8,
+            device="0",
+            init="pretrained",
+            pretrained_weights="yolov8n.pt",
+            focal_loss_type="soft_focal",
+            focal_gamma=1.0,
+            focal_alpha="none",
+        )
+        focal_experiment = next(experiment for experiment in EXPERIMENTS if experiment.key == "focal")
+
+        metadata = experiment_metadata(args, focal_experiment)
+
+        self.assertTrue(metadata["FocalLoss"])
+        self.assertEqual(metadata["Init"], "pretrained")
+        self.assertEqual(metadata["PretrainedWeights"], "yolov8n.pt")
+        self.assertEqual(metadata["FocalLossType"], "soft_focal")
+        self.assertEqual(metadata["FocalGamma"], 1.0)
+
     def test_summarize_metrics_exports_requested_metrics_and_fps(self) -> None:
+        args = argparse.Namespace(
+            data="dataset/data.yaml",
+            epochs=None,
+            imgsz=None,
+            batch=None,
+            workers=None,
+            device=None,
+            init=None,
+            pretrained_weights=None,
+            focal_loss_type=None,
+            focal_gamma=None,
+            focal_alpha=None,
+        )
         metrics = SimpleNamespace(
             speed={"preprocess": 1.0, "inference": 8.0, "postprocess": 1.0},
             box=SimpleNamespace(mp=0.8, mr=0.7, map50=0.6, map=0.5),
         )
 
-        row = summarize_metrics(EXPERIMENTS[0], Path("best.pt"), metrics)
+        row = summarize_metrics(args, EXPERIMENTS[0], Path("best.pt"), metrics)
 
         self.assertEqual(row["Precision"], 0.8)
         self.assertEqual(row["Recall"], 0.7)
         self.assertEqual(row["mAP50"], 0.6)
         self.assertEqual(row["mAP50-95"], 0.5)
         self.assertEqual(row["FPS"], 100.0)
+        self.assertIn("Init", SUMMARY_FIELDS)
+        self.assertEqual(row["CBAM"], False)
 
     def test_metric_float_ignores_invalid_values(self) -> None:
         self.assertEqual(metric_float({"x": "0.25"}, "x"), 0.25)

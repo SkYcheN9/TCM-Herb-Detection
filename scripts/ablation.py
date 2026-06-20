@@ -150,6 +150,23 @@ EXPERIMENTS = [
 SUMMARY_FIELDS = [
     "Experiment",
     "Config",
+    "Suite",
+    "CBAM",
+    "BiFPN",
+    "FocalLoss",
+    "GhostConv",
+    "DecoupledHead",
+    "Init",
+    "PretrainedWeights",
+    "FocalLossType",
+    "FocalGamma",
+    "FocalAlpha",
+    "Data",
+    "Epochs",
+    "ImageSize",
+    "Batch",
+    "Workers",
+    "Device",
     "Weights",
     "Precision",
     "Recall",
@@ -261,6 +278,32 @@ def train_command(args: argparse.Namespace, experiment: Experiment, runs_dir: Pa
     return command
 
 
+def experiment_metadata(args: argparse.Namespace, experiment: Experiment) -> dict[str, object]:
+    """Return reproducibility metadata for a summary row."""
+
+    return {
+        "Experiment": experiment.display_name,
+        "Config": experiment.config,
+        "Suite": experiment.suite,
+        "CBAM": experiment.enable_cbam,
+        "BiFPN": experiment.enable_bifpn,
+        "FocalLoss": experiment.enable_focal_loss,
+        "GhostConv": experiment.enable_ghostconv,
+        "DecoupledHead": experiment.enable_decoupled_head,
+        "Init": args.init or "config/default",
+        "PretrainedWeights": args.pretrained_weights or "",
+        "FocalLossType": args.focal_loss_type if experiment.enable_focal_loss else "",
+        "FocalGamma": args.focal_gamma if experiment.enable_focal_loss else "",
+        "FocalAlpha": args.focal_alpha if experiment.enable_focal_loss else "",
+        "Data": str(resolve_workspace_path(args.data)),
+        "Epochs": args.epochs if args.epochs is not None else "",
+        "ImageSize": args.imgsz if args.imgsz is not None else "",
+        "Batch": args.batch if args.batch is not None else "",
+        "Workers": args.workers if args.workers is not None else "",
+        "Device": args.device or "",
+    }
+
+
 def run_training(args: argparse.Namespace, experiment: Experiment, runs_dir: Path) -> None:
     """Run one training job."""
 
@@ -309,7 +352,7 @@ def validate_experiment(
     """Validate one trained model and return summary metrics."""
 
     if args.skip_val:
-        return empty_summary(experiment, weights), None
+        return empty_summary(args, experiment, weights), None
 
     register_for_experiment(experiment)
     from ultralytics import YOLO
@@ -331,15 +374,14 @@ def validate_experiment(
 
     print(f"[val] {experiment.display_name}: {weights}", flush=True)
     metrics = model.val(**val_kwargs)
-    return summarize_metrics(experiment, weights, metrics), metrics
+    return summarize_metrics(args, experiment, weights, metrics), metrics
 
 
-def empty_summary(experiment: Experiment, weights: Path) -> dict[str, object]:
+def empty_summary(args: argparse.Namespace, experiment: Experiment, weights: Path) -> dict[str, object]:
     """Return a placeholder summary row when validation is skipped."""
 
     return {
-        "Experiment": experiment.display_name,
-        "Config": experiment.config,
+        **experiment_metadata(args, experiment),
         "Weights": str(weights),
         "Precision": "",
         "Recall": "",
@@ -352,7 +394,12 @@ def empty_summary(experiment: Experiment, weights: Path) -> dict[str, object]:
     }
 
 
-def summarize_metrics(experiment: Experiment, weights: Path, metrics: object) -> dict[str, object]:
+def summarize_metrics(
+    args: argparse.Namespace,
+    experiment: Experiment,
+    weights: Path,
+    metrics: object,
+) -> dict[str, object]:
     """Convert Ultralytics validation metrics into a summary row."""
 
     speed = getattr(metrics, "speed", {}) or {}
@@ -363,8 +410,7 @@ def summarize_metrics(experiment: Experiment, weights: Path, metrics: object) ->
     fps = 1000.0 / fps_denominator if fps_denominator > 0 else 0.0
     box = metrics.box
     return {
-        "Experiment": experiment.display_name,
-        "Config": experiment.config,
+        **experiment_metadata(args, experiment),
         "Weights": str(weights),
         "Precision": float(box.mp),
         "Recall": float(box.mr),
