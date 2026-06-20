@@ -14,6 +14,7 @@
 | Albumentations 离线增强 | 已补充 | `scripts/augment_dataset.py` |
 | Mosaic、MixUp、HSV、随机裁剪 | 已补充 | `scripts/augment_dataset.py` 支持 Mosaic、MixUp、HueSaturationValue、RandomCropFromBorders |
 | RandomBrightnessContrast、HorizontalFlip、CLAHE | 已补充 | `scripts/augment_dataset.py` |
+| 正式增强数据集 | 已生成 | `dataset_augmented/data.yaml`，训练集 1942 张，验证集 193 张 |
 
 ## 系统功能要求
 
@@ -60,6 +61,8 @@
 | 混淆矩阵 | 已实现 | Ultralytics `plots=True`，`evaluate.py` 与 `ablation.py` 会生成 |
 | 类别统计图 | 部分实现 | 后端/前端/桌面端提供类别统计；独立离线统计图脚本尚未单独拆分 |
 
+正式 5 组 CUDA 消融训练已完成，输出位于 `reports/ablation`。当前精度最高的是 Baseline：`mAP50=0.94706`、`mAP50-95=0.74452`；CBAM 与 CBAM+BiFPN 均保持 `mAP50 > 0.92`；Focal Loss 与 FullModel 在当前 100 epoch 和默认 Focal 参数下欠收敛，作为后续优化方向保留。
+
 ## 自动化脚本
 
 | 脚本 | 状态 |
@@ -86,9 +89,9 @@
 | Raspberry Pi 摄像头检测 | 已实现 | `deployment/raspberry_pi/pi_camera_web.py` |
 | Raspberry Pi ONNX/OpenVINO/NCNN 导出 | 已补充 | `export.py`、`deploy_pi.py` |
 
-## 仍需现场或完整训练确认的事项
+## 仍需现场或后续实验确认的事项
 
 1. 复杂干扰样本现场验收效果需要教师提供新样本后验证。
-2. FullModel 需要完整训练后才能确认是否达到 `mAP50 >= 90%`、`mAP50-95 >= 70%`。
+2. FullModel 已完成完整训练，但当前结果未达到 `mAP50 >= 90%`、`mAP50-95 >= 70%`；需要继续调 Focal 参数、预训练策略或更长训练。
 3. CPU、树莓派 FPS 目标需要在对应设备实测，`benchmark.py` 和 `benchmark_pi.py` 已提供测试入口。
 4. RTSP 独立接口和 UI 入口尚未专门封装，若验收明确要求 RTSP，需要继续补 API 与界面。

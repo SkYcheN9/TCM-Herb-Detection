@@ -45,3 +45,17 @@ enable_focal_loss: true
 ```
 
 Baseline 保持 `configs/baseline.yaml` 与 `yolov8n.pt`，不启用上述结构改动。
+
+## 正式训练结论
+
+本次 5 组 CUDA 消融训练已完成，统一使用 `dataset_augmented/data.yaml`、`epochs=100`、`imgsz=640`、`batch=8`、`workers=0`。
+
+| 实验 | mAP50 | mAP50-95 | FPS |
+| --- | ---: | ---: | ---: |
+| Baseline | 0.94706 | 0.74452 | 144.91 |
+| Baseline+CBAM | 0.92953 | 0.72314 | 148.42 |
+| Baseline+CBAM+BiFPN | 0.92321 | 0.71355 | 167.94 |
+| Baseline+CBAM+BiFPN+Focal | 0.61593 | 0.47776 | 95.43 |
+| FullModel | 0.52885 | 0.40597 | 60.29 |
+
+当前精度交付推荐使用 Baseline best 权重；结构改进展示推荐使用 CBAM+BiFPN best 权重。FullModel 已跑通完整训练链路，但在当前 Focal 参数和训练轮数下欠收敛，后续需要继续调参或引入更长训练策略。

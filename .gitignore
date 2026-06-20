@@ -35,11 +35,14 @@ env/
 /reports/phase1/*.pid
 /reports/benchmark/
 /reports/evaluation/
+/reports/ablation_probe/
 /reports/ablation/runs/
 /reports/ablation/val/
 /reports/ablation/plots/
 /reports/ablation/*.csv
 /reports/ablation/*.xlsx
+/reports/ablation/*.log
+/reports/ablation/*.pid
 /reports/desktop/
 /backend/data/*.db
 /backend/data/*.log

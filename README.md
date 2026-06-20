@@ -194,6 +194,24 @@ FullModel (GhostConv+CBAM+BiFPN+DecoupledHead+Focal)
 - `runs/`：各实验训练输出
 - `val/`：各实验验证输出
 
+本机 CUDA 正式消融训练使用增强数据集和较稳的 batch 设置：
+
+```bash
+.\.venv\Scripts\python.exe scripts/ablation.py --data dataset_augmented\data.yaml --epochs 100 --imgsz 640 --batch 8 --workers 0 --device auto
+```
+
+正式结果摘要：
+
+| 实验 | mAP50 | mAP50-95 | FPS |
+| --- | ---: | ---: | ---: |
+| Baseline | 0.94706 | 0.74452 | 144.91 |
+| Baseline+CBAM | 0.92953 | 0.72314 | 148.42 |
+| Baseline+CBAM+BiFPN | 0.92321 | 0.71355 | 167.94 |
+| Baseline+CBAM+BiFPN+Focal | 0.61593 | 0.47776 | 95.43 |
+| FullModel | 0.52885 | 0.40597 | 60.29 |
+
+当前精度交付权重建议使用 `reports/ablation/runs/baseline/weights/best.pt`；结构改进展示可使用 `reports/ablation/runs/baseline_cbam_bifpn/weights/best.pt`。Focal Loss 与 FullModel 已跑通，但在当前参数下欠收敛，后续需要继续调参。
+
 只跑指定实验：
 
 ```bash
