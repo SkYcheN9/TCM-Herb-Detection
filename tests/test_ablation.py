@@ -27,6 +27,22 @@ class AblationTestCase(unittest.TestCase):
 
         self.assertEqual([experiment.key for experiment in selected], ["baseline", "cbam_bifpn"])
 
+    def test_default_experiments_excludes_extended_single_module_runs(self) -> None:
+        selected = selected_experiments("default")
+
+        self.assertEqual(
+            [experiment.key for experiment in selected],
+            ["baseline", "cbam", "cbam_bifpn", "cbam_bifpn_focal", "full_model"],
+        )
+
+    def test_extended_experiments_includes_single_module_runs(self) -> None:
+        selected = selected_experiments("extended")
+
+        self.assertIn("bifpn", [experiment.key for experiment in selected])
+        self.assertIn("focal", [experiment.key for experiment in selected])
+        self.assertIn("ghostconv", [experiment.key for experiment in selected])
+        self.assertIn("decoupled_head", [experiment.key for experiment in selected])
+
     def test_train_command_overrides_common_training_options(self) -> None:
         args = argparse.Namespace(
             data="dataset/data.yaml",
@@ -35,6 +51,11 @@ class AblationTestCase(unittest.TestCase):
             batch=4,
             workers=0,
             device="0",
+            init="pretrained",
+            pretrained_weights="yolov8n.pt",
+            focal_loss_type=None,
+            focal_gamma=None,
+            focal_alpha=None,
         )
         command = train_command(args, EXPERIMENTS[0], Path("reports/ablation/runs"))
 
@@ -44,6 +65,30 @@ class AblationTestCase(unittest.TestCase):
         self.assertIn("2", command)
         self.assertIn("--device", command)
         self.assertIn("0", command)
+        self.assertIn("--init", command)
+        self.assertIn("pretrained", command)
+
+    def test_train_command_forwards_focal_options_only_for_focal_experiments(self) -> None:
+        args = argparse.Namespace(
+            data="dataset/data.yaml",
+            epochs=None,
+            imgsz=None,
+            batch=None,
+            workers=None,
+            device=None,
+            init=None,
+            pretrained_weights=None,
+            focal_loss_type="varifocal",
+            focal_gamma=1.5,
+            focal_alpha="0.75",
+        )
+        focal_experiment = next(experiment for experiment in EXPERIMENTS if experiment.key == "focal")
+        baseline_command = train_command(args, EXPERIMENTS[0], Path("reports/ablation/runs"))
+        focal_command = train_command(args, focal_experiment, Path("reports/ablation/runs"))
+
+        self.assertNotIn("--focal-loss-type", baseline_command)
+        self.assertIn("--focal-loss-type", focal_command)
+        self.assertIn("varifocal", focal_command)
 
     def test_summarize_metrics_exports_requested_metrics_and_fps(self) -> None:
         metrics = SimpleNamespace(

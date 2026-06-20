@@ -94,9 +94,26 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--focal-gamma", type=float, default=None)
     parser.add_argument(
+        "--focal-loss-type",
+        default=None,
+        choices=["soft_focal", "legacy_focal", "varifocal"],
+        help="Classification loss replacement used when Focal Loss is enabled.",
+    )
+    parser.add_argument(
         "--focal-alpha",
         default=None,
         help="Focal Loss alpha in [0, 1], or none to disable alpha weighting.",
+    )
+    parser.add_argument(
+        "--init",
+        default=None,
+        choices=["default", "scratch", "pretrained"],
+        help="default keeps config behavior, scratch disables pretrained .pt starts, pretrained transfers weights.",
+    )
+    parser.add_argument(
+        "--pretrained-weights",
+        default=None,
+        help="Weights used when --init pretrained is selected.",
     )
     parser.add_argument(
         "--skip-dataset-check",
@@ -209,6 +226,19 @@ def resolve_model_and_name(
     return model_path, name
 
 
+def scratch_model_path(model_path: str) -> str:
+    """Return a YAML model path for true scratch training when a .pt weight is configured."""
+
+    known = {
+        "yolov8n.pt": "yolov8n.yaml",
+        "yolov8s.pt": "yolov8s.yaml",
+        "yolov8m.pt": "yolov8m.yaml",
+        "yolov8l.pt": "yolov8l.yaml",
+        "yolov8x.pt": "yolov8x.yaml",
+    }
+    return known.get(model_path, model_path)
+
+
 def main() -> int:
     """Run Ultralytics YOLOv8 training."""
 
@@ -239,10 +269,13 @@ def main() -> int:
         if enable_decoupled_head_cli_supplied
         else config.get("enable_decoupled_head")
     )
-    focal_gamma = float(config_value(args, config, "focal_gamma", 2.0))
+    focal_loss_type = str(config_value(args, config, "focal_loss_type", "soft_focal"))
+    focal_gamma = float(config_value(args, config, "focal_gamma", 1.0))
     focal_alpha = optional_float(
-        args.focal_alpha if args.focal_alpha is not None else config.get("focal_alpha", 0.25)
+        args.focal_alpha if args.focal_alpha is not None else config.get("focal_alpha", None)
     )
+    init_mode = str(config_value(args, config, "init", "default"))
+    pretrained_weights = str(config_value(args, config, "pretrained_weights", "yolov8n.pt"))
 
     data_path = Path(config_value(args, config, "data", "dataset/data.yaml"))
     model_path, name = resolve_model_and_name(
@@ -256,6 +289,8 @@ def main() -> int:
             or enable_decoupled_head_cli_supplied
         ),
     )
+    if init_mode == "scratch":
+        model_path = scratch_model_path(model_path)
     epochs = int(config_value(args, config, "epochs", 100))
     imgsz = int(config_value(args, config, "imgsz", 640))
     workers = int(config_value(args, config, "workers", 4))
@@ -309,8 +344,12 @@ def main() -> int:
     print(f"Decoupled Head enabled: {enable_decoupled_head}")
     print(f"Focal Loss enabled: {enable_focal_loss}")
     if enable_focal_loss:
+        print(f"Focal loss type: {focal_loss_type}")
         print(f"Focal gamma: {focal_gamma}")
         print(f"Focal alpha: {focal_alpha}")
+    print(f"Initialization: {init_mode}")
+    if init_mode == "pretrained":
+        print(f"Pretrained weights: {pretrained_weights}")
     print(f"Output: {project_path / name}")
 
     try:
@@ -323,28 +362,34 @@ def main() -> int:
         ) from exc
 
     trainer = None
-    if enable_focal_loss:
-        from scripts.trainers import build_focal_trainer
+    if enable_focal_loss or init_mode == "pretrained":
+        from scripts.trainers import build_project_trainer
 
-        trainer = build_focal_trainer(
+        trainer = build_project_trainer(
             enable_focal_loss=enable_focal_loss,
+            focal_loss_type=focal_loss_type,
             focal_gamma=focal_gamma,
             focal_alpha=focal_alpha,
+            pretrained_transfer=init_mode == "pretrained",
+            pretrained_weights=pretrained_weights,
         )
 
-    model.train(
-        trainer=trainer,
-        data=str(data_path),
-        epochs=epochs,
-        imgsz=imgsz,
-        batch=batch,
-        workers=workers,
-        seed=seed,
-        device=device,
-        project=str(project_path),
-        name=name,
-        exist_ok=True,
-    )
+    train_kwargs = {
+        "trainer": trainer,
+        "data": str(data_path),
+        "epochs": epochs,
+        "imgsz": imgsz,
+        "batch": batch,
+        "workers": workers,
+        "seed": seed,
+        "device": device,
+        "project": str(project_path),
+        "name": name,
+        "exist_ok": True,
+    }
+    if init_mode == "scratch":
+        train_kwargs["pretrained"] = False
+    model.train(**train_kwargs)
     return 0
 
 

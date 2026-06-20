@@ -3,8 +3,9 @@ enable_bifpn: true
 enable_focal_loss: true
 enable_ghostconv: true
 enable_decoupled_head: true
-focal_gamma: 2.0
-focal_alpha: 0.25
+focal_loss_type: soft_focal
+focal_gamma: 1.0
+focal_alpha: null
 model: models/yolov8n_full.yaml
 data: dataset/data.yaml
 epochs: 100

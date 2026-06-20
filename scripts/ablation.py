@@ -37,6 +37,7 @@ class Experiment:
     enable_focal_loss: bool
     enable_ghostconv: bool
     enable_decoupled_head: bool
+    suite: str = "default"
 
 
 EXPERIMENTS = [
@@ -61,6 +62,54 @@ EXPERIMENTS = [
         enable_focal_loss=False,
         enable_ghostconv=False,
         enable_decoupled_head=False,
+    ),
+    Experiment(
+        key="bifpn",
+        display_name="Baseline+BiFPN",
+        config="configs/bifpn.yaml",
+        run_name="baseline_bifpn",
+        enable_cbam=False,
+        enable_bifpn=True,
+        enable_focal_loss=False,
+        enable_ghostconv=False,
+        enable_decoupled_head=False,
+        suite="extended",
+    ),
+    Experiment(
+        key="focal",
+        display_name="Baseline+Focal",
+        config="configs/focal.yaml",
+        run_name="baseline_focal",
+        enable_cbam=False,
+        enable_bifpn=False,
+        enable_focal_loss=True,
+        enable_ghostconv=False,
+        enable_decoupled_head=False,
+        suite="extended",
+    ),
+    Experiment(
+        key="ghostconv",
+        display_name="Baseline+GhostConv",
+        config="configs/ghostconv.yaml",
+        run_name="baseline_ghostconv",
+        enable_cbam=False,
+        enable_bifpn=False,
+        enable_focal_loss=False,
+        enable_ghostconv=True,
+        enable_decoupled_head=False,
+        suite="extended",
+    ),
+    Experiment(
+        key="decoupled_head",
+        display_name="Baseline+DecoupledHead",
+        config="configs/decoupled_head.yaml",
+        run_name="baseline_decoupled_head",
+        enable_cbam=False,
+        enable_bifpn=False,
+        enable_focal_loss=False,
+        enable_ghostconv=False,
+        enable_decoupled_head=True,
+        suite="extended",
     ),
     Experiment(
         key="cbam_bifpn",
@@ -124,7 +173,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch", type=int, default=None)
     parser.add_argument("--workers", type=int, default=None)
     parser.add_argument("--device", default=None)
-    parser.add_argument("--experiments", default="all", help="Comma-separated keys or all.")
+    parser.add_argument(
+        "--experiments",
+        default="default",
+        help="default, extended, all, or comma-separated experiment keys.",
+    )
+    parser.add_argument(
+        "--init",
+        default=None,
+        choices=["default", "scratch", "pretrained"],
+        help="Forwarded to train.py; use pretrained for fair partial weight transfer.",
+    )
+    parser.add_argument(
+        "--pretrained-weights",
+        default=None,
+        help="Weights used when --init pretrained is selected.",
+    )
+    parser.add_argument(
+        "--focal-loss-type",
+        default=None,
+        choices=["soft_focal", "legacy_focal", "varifocal"],
+        help="Override Focal variants for Focal-enabled experiments.",
+    )
+    parser.add_argument("--focal-gamma", type=float, default=None)
+    parser.add_argument("--focal-alpha", default=None)
     parser.add_argument("--skip-train", action="store_true", help="Reuse existing weights.")
     parser.add_argument("--skip-val", action="store_true", help="Only export training curves already available.")
     parser.add_argument("--dry-run", action="store_true", help="Print planned runs without executing them.")
@@ -134,7 +206,12 @@ def parse_args() -> argparse.Namespace:
 def selected_experiments(selection: str) -> list[Experiment]:
     """Return selected experiments in canonical order."""
 
-    if selection.lower() == "all":
+    normalized = selection.lower()
+    if normalized == "all":
+        return list(EXPERIMENTS)
+    if normalized == "default":
+        return [experiment for experiment in EXPERIMENTS if experiment.suite == "default"]
+    if normalized == "extended":
         return list(EXPERIMENTS)
     keys = {item.strip() for item in selection.split(",") if item.strip()}
     known = {experiment.key for experiment in EXPERIMENTS}
@@ -161,15 +238,26 @@ def train_command(args: argparse.Namespace, experiment: Experiment, runs_dir: Pa
         str(data_path),
     ]
     optional_args = {
-        "--epochs": args.epochs,
-        "--imgsz": args.imgsz,
-        "--batch": args.batch,
-        "--workers": args.workers,
-        "--device": args.device,
+        "--epochs": getattr(args, "epochs", None),
+        "--imgsz": getattr(args, "imgsz", None),
+        "--batch": getattr(args, "batch", None),
+        "--workers": getattr(args, "workers", None),
+        "--device": getattr(args, "device", None),
+        "--init": getattr(args, "init", None),
+        "--pretrained-weights": getattr(args, "pretrained_weights", None),
     }
     for flag, value in optional_args.items():
         if value is not None:
             command.extend([flag, str(value)])
+    if experiment.enable_focal_loss:
+        focal_args = {
+            "--focal-loss-type": getattr(args, "focal_loss_type", None),
+            "--focal-gamma": getattr(args, "focal_gamma", None),
+            "--focal-alpha": getattr(args, "focal_alpha", None),
+        }
+        for flag, value in focal_args.items():
+            if value is not None:
+                command.extend([flag, str(value)])
     return command
 
 

@@ -35,6 +35,7 @@ env/
 /reports/phase1/*.pid
 /reports/benchmark/
 /reports/evaluation/
+/reports/smoke/
 /reports/ablation_probe/
 /reports/ablation/runs/
 /reports/ablation/val/

@@ -8,9 +8,9 @@ import torch.nn.functional as F
 
 
 class FocalClassificationLoss(nn.Module):
-    """Binary focal loss for YOLOv8 multi-label classification logits."""
+    """Soft-label focal loss for YOLOv8 quality-aware classification targets."""
 
-    def __init__(self, gamma: float = 2.0, alpha: float | None = 0.25) -> None:
+    def __init__(self, gamma: float = 1.0, alpha: float | None = None) -> None:
         super().__init__()
         if gamma < 0:
             raise ValueError("focal gamma must be >= 0")
@@ -20,16 +20,61 @@ class FocalClassificationLoss(nn.Module):
         self.alpha = None if alpha is None else float(alpha)
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        """Return element-wise focal classification loss."""
+        """Return element-wise focal loss that keeps YOLOv8 soft targets intact."""
+
+        bce_loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+        prob = torch.sigmoid(logits)
+        hard_targets = targets.gt(0).to(dtype=targets.dtype)
+        p_t = hard_targets * prob + (1 - hard_targets) * (1 - prob)
+        focal_factor = (1 - p_t).clamp(min=0).pow(self.gamma)
+        if self.alpha is not None:
+            alpha_t = hard_targets * self.alpha + (1 - hard_targets) * (1 - self.alpha)
+            focal_factor = alpha_t * focal_factor
+        return bce_loss * focal_factor
+
+
+class LegacyFocalClassificationLoss(FocalClassificationLoss):
+    """Original project focal loss kept only for exact experiment reproduction."""
+
+    def __init__(self, gamma: float = 2.0, alpha: float | None = 0.25) -> None:
+        super().__init__(gamma=gamma, alpha=alpha)
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Return the legacy element-wise focal loss over raw soft targets."""
 
         bce_loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
         prob = torch.sigmoid(logits)
         p_t = targets * prob + (1 - targets) * (1 - prob)
-        focal_factor = (1 - p_t).pow(self.gamma)
+        focal_factor = (1 - p_t).clamp(min=0).pow(self.gamma)
         if self.alpha is not None:
             alpha_t = targets * self.alpha + (1 - targets) * (1 - self.alpha)
             focal_factor = alpha_t * focal_factor
         return bce_loss * focal_factor
+
+
+class VarifocalClassificationLoss(nn.Module):
+    """Varifocal loss for YOLOv8 soft quality targets."""
+
+    def __init__(self, gamma: float = 1.5, alpha: float | None = 0.75) -> None:
+        super().__init__()
+        if gamma < 0:
+            raise ValueError("varifocal gamma must be >= 0")
+        if alpha is not None and not 0 <= alpha <= 1:
+            raise ValueError("varifocal alpha must be in [0, 1] or None")
+        self.gamma = float(gamma)
+        self.alpha = None if alpha is None else float(alpha)
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Return element-wise varifocal loss."""
+
+        prob = torch.sigmoid(logits)
+        hard_targets = targets.gt(0).to(dtype=targets.dtype)
+        negative_weight = prob.pow(self.gamma) * (1 - hard_targets)
+        if self.alpha is not None:
+            negative_weight = self.alpha * negative_weight
+        weight = targets * hard_targets + negative_weight
+        bce_loss = F.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+        return bce_loss * weight
 
 
 class FocalV8DetectionLoss:
@@ -39,10 +84,12 @@ class FocalV8DetectionLoss:
         from ultralytics.utils.loss import v8DetectionLoss
 
         self.base_loss = v8DetectionLoss(model, tal_topk=tal_topk, tal_topk2=tal_topk2)
-        gamma = float(getattr(model, "focal_gamma", 2.0))
-        alpha_value = getattr(model, "focal_alpha", 0.25)
+        loss_type = str(getattr(model, "focal_loss_type", "soft_focal")).lower()
+        gamma = float(getattr(model, "focal_gamma", 1.0))
+        alpha_value = getattr(model, "focal_alpha", None)
         alpha = None if alpha_value is None or str(alpha_value).lower() == "none" else float(alpha_value)
-        self.focal = FocalClassificationLoss(gamma=gamma, alpha=alpha)
+        self.loss_type = loss_type
+        self.focal = build_classification_loss(loss_type, gamma=gamma, alpha=alpha)
 
     def __getattr__(self, name: str):
         """Delegate Ultralytics loss attributes to the wrapped v8 loss."""
@@ -159,3 +206,23 @@ def register_focal_loss() -> None:
     init_criterion._tcm_focal_patched = True
     init_criterion._tcm_original_init_criterion = original_init_criterion
     tasks.DetectionModel.init_criterion = init_criterion
+
+
+def build_classification_loss(
+    loss_type: str,
+    gamma: float,
+    alpha: float | None,
+) -> nn.Module:
+    """Build the configured classification-loss replacement."""
+
+    normalized = loss_type.lower()
+    if normalized in {"soft_focal", "focal"}:
+        return FocalClassificationLoss(gamma=gamma, alpha=alpha)
+    if normalized == "legacy_focal":
+        return LegacyFocalClassificationLoss(gamma=gamma, alpha=alpha)
+    if normalized == "varifocal":
+        return VarifocalClassificationLoss(gamma=gamma, alpha=alpha)
+    raise ValueError(
+        "Unknown focal loss type "
+        f"{loss_type!r}; expected soft_focal, legacy_focal, or varifocal"
+    )

@@ -146,7 +146,7 @@ python -m venv .venv
 命令行也支持显式开启 Focal Loss：
 
 ```bash
-.\.venv\Scripts\python.exe train.py --enable-cbam true --enable-bifpn true --enable-focal-loss true --focal-gamma 2.0 --focal-alpha 0.25 --name cbam_bifpn_focal
+.\.venv\Scripts\python.exe train.py --enable-cbam true --enable-bifpn true --enable-focal-loss true --focal-loss-type soft_focal --focal-gamma 1.0 --focal-alpha none --name cbam_bifpn_focal
 ```
 
 命令行也支持显式开启 GhostConv 和 Decoupled Head：
