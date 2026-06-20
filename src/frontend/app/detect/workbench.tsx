@@ -306,9 +306,14 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
           body,
         });
 
-        const data = (await response.json()) as DetectApiResponse & {
-          detail?: unknown;
-        };
+        const responseText = await response.text();
+        const data = (
+          responseText
+            ? (JSON.parse(responseText) as DetectApiResponse & {
+                detail?: unknown;
+              })
+            : { detail: "检测服务返回空响应" }
+        ) as DetectApiResponse & { detail?: unknown };
 
         if (!response.ok) {
           throw new Error(
