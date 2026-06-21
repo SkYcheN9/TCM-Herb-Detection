@@ -89,6 +89,7 @@ class DetectionView(Page):
             "选择摄像头、图片或视频后点击开始检测，结果会保存到 reports/desktop。",
             self,
         )
+        self.video_panel.setMinimumWidth(640)
         self.workspace_splitter.addWidget(self.video_panel)
 
         side_container = QWidget(self)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QFrame,
@@ -150,10 +150,10 @@ class VideoPanel(QFrame):
         self.layout.setContentsMargins(8, 8, 8, 8)
         self.layout.setSpacing(0)
 
-        self.video_label = QLabel(self)
+        self.video_label = _FrameLabel(self)
         self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setMinimumSize(0, 0)
-        self.video_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.video_label.setMinimumSize(320, 180)
+        self.video_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.video_label.setScaledContents(False)
         self.video_label.hide()
 
@@ -201,8 +201,14 @@ class VideoPanel(QFrame):
         if self._pixmap.isNull():
             return
 
+        target_size = self.video_label.size()
+        if target_size.width() <= 1 or target_size.height() <= 1:
+            target_size = self.contentsRect().adjusted(8, 8, -8, -8).size()
+        if target_size.width() <= 1 or target_size.height() <= 1:
+            return
+
         scaled = self._pixmap.scaled(
-            self.video_label.size(),
+            target_size,
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation,
         )
@@ -224,6 +230,16 @@ class TagRow(QWidget):
             layout.addWidget(label)
 
         layout.addStretch(1)
+
+
+class _FrameLabel(QLabel):
+    """Preview label whose layout size is independent from the current pixmap."""
+
+    def sizeHint(self) -> QSize:
+        return QSize(960, 540)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(320, 180)
 
 
 def add_metric_grid(layout: QVBoxLayout, metrics: list[tuple[str, str, str]], columns: int = 4) -> None:
