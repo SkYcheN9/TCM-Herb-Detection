@@ -80,6 +80,7 @@ export function StatisticsCharts({
 
   const activeClasses = rankedClasses.filter((item) => item.count > 0);
   const classChartData = activeClasses.length > 0 ? activeClasses : rankedClasses;
+  const allClassRows = rankedClasses;
   const maxClassCount = Math.max(1, ...classChartData.map((item) => item.count));
   const trend = statistics.detection_trend;
   const latestTrend = trend.slice(-14);
@@ -259,9 +260,9 @@ export function StatisticsCharts({
       <div className="container grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="grid gap-4">
           <ChartCard
-            description="展示各饮片类别在历史检测中的识别数量"
+            description="展示 15 类饮片在历史检测中的累计识别数量"
             icon={BarChart3}
-            title="类别统计"
+            title="药材计数总览"
           >
             <ReactECharts
               className="h-[360px]"
@@ -306,11 +307,11 @@ export function StatisticsCharts({
 
           <Card>
             <CardHeader>
-              <CardTitle>高频类别</CardTitle>
-              <CardDescription>按目标数量排序的类别列表</CardDescription>
+              <CardTitle>全部药材计数</CardTitle>
+              <CardDescription>按目标数量排序，覆盖固定 15 类饮片</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {rankedClasses.slice(0, 6).map((item) => (
+            <CardContent className="max-h-[420px] space-y-4 overflow-y-auto pr-1">
+              {allClassRows.map((item) => (
                 <motion.div
                   animate={{ opacity: 1, x: 0 }}
                   className="space-y-2"

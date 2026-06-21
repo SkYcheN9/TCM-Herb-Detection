@@ -58,6 +58,10 @@ class DetectApiResponse(BaseModel):
     """Minimal image detection response."""
 
     count: int
+    class_counts: dict[str, int] = Field(default_factory=dict)
+    chinese_class_counts: dict[str, int] = Field(default_factory=dict)
+    image_width: int | None = None
+    image_height: int | None = None
     detections: list[DetectionApiItem]
 
 
@@ -75,6 +79,8 @@ class DetectImageResponse(BaseModel):
     fps: float
     total_count: int
     class_counts: dict[str, int]
+    image_width: int | None = None
+    image_height: int | None = None
     detections: list[DetectionItem]
     created_at: datetime
     status: str

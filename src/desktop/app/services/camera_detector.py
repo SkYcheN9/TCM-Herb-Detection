@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter, deque
 import sys
 import time
 from pathlib import Path
@@ -16,6 +17,10 @@ from ultralytics import YOLO
 from .gpu_status import query_gpu_status, resolve_inference_device
 from .history_store import HistoryStore
 from .paths import ensure_desktop_dirs
+
+
+SMOOTHING_WINDOW = 7
+STABLE_MIN_FRAMES = 3
 
 
 class CameraDetectorThread(QThread):
@@ -78,6 +83,7 @@ class CameraDetectorThread(QThread):
             frame_index = 0
             gpu_text = query_gpu_status().text
             merged_counts: dict[str, int] = {}
+            count_history: deque[dict[str, int]] = deque(maxlen=SMOOTHING_WINDOW)
             last_fps = 0.0
 
             while self._running:
@@ -95,14 +101,15 @@ class CameraDetectorThread(QThread):
                     verbose=False,
                 )[0]
 
-                annotated = result.plot()
+                raw_counts = _count_classes(result)
+                count_history.append(raw_counts)
+                stable_counts = _smooth_class_counts(count_history, merged_counts)
+                merged_counts = stable_counts
+                annotated = _plot_stable_result(result, stable_counts)
                 now = time.perf_counter()
                 instant_fps = 1.0 / max(now - last_frame_at, 1e-6)
                 smooth_fps = instant_fps if smooth_fps <= 0 else smooth_fps * 0.85 + instant_fps * 0.15
                 last_frame_at = now
-
-                counts = _count_classes(result)
-                merged_counts = counts
                 if frame_index % 15 == 0:
                     gpu_text = query_gpu_status().text
                 last_fps = smooth_fps
@@ -111,12 +118,14 @@ class CameraDetectorThread(QThread):
                 self.stats_ready.emit(
                     {
                         "fps": smooth_fps,
-                        "counts": counts,
-                        "total": sum(counts.values()),
+                        "counts": stable_counts,
+                        "raw_counts": raw_counts,
+                        "total": sum(stable_counts.values()),
                         "gpu": gpu_text,
                         "device": "CUDA:0" if device == 0 else "CPU",
                         "model": self.model_path.name,
                         "camera": self.camera_index,
+                        "stabilized": True,
                     }
                 )
                 frame_index += 1
@@ -158,6 +167,87 @@ def _count_classes(result: Any) -> dict[str, int]:
         counts[name] = counts.get(name, 0) + 1
 
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+
+def _smooth_class_counts(history: deque[dict[str, int]], fallback: dict[str, int] | None = None) -> dict[str, int]:
+    """Suppress one-frame class flips in live camera mode."""
+
+    fallback = fallback or {}
+    if not history:
+        return {}
+    if len(history) < STABLE_MIN_FRAMES:
+        return fallback
+
+    votes: Counter[str] = Counter()
+    totals: Counter[str] = Counter()
+    for counts in history:
+        for name, count in counts.items():
+            if count > 0:
+                votes[name] += 1
+                totals[name] += count
+
+    required_votes = max(STABLE_MIN_FRAMES, len(history) // 2 + 1)
+    stable = {
+        name: max(1, round(totals[name] / votes[name]))
+        for name, vote_count in votes.items()
+        if vote_count >= required_votes
+    }
+    if stable:
+        return dict(sorted(stable.items(), key=lambda item: (-item[1], item[0])))
+
+    latest = history[-1]
+    if not latest:
+        return {}
+    return fallback
+
+
+def _plot_stable_result(result: Any, stable_counts: dict[str, int]) -> np.ndarray:
+    """Draw only stable classes while preserving raw boxes for stable targets."""
+
+    frame = result.orig_img.copy()
+    if not stable_counts:
+        return frame
+
+    boxes = getattr(result, "boxes", None)
+    if boxes is None or boxes.cls is None:
+        return frame
+
+    names = getattr(result, "names", {}) or {}
+    stable_names = set(stable_counts)
+    xyxy = boxes.xyxy.detach().cpu().numpy().tolist()
+    class_ids = boxes.cls.detach().cpu().numpy().astype(int).tolist()
+    confidences = boxes.conf.detach().cpu().numpy().tolist()
+
+    for bbox, class_id, confidence in zip(xyxy, class_ids, confidences, strict=False):
+        name = names.get(class_id, str(class_id)) if isinstance(names, dict) else str(class_id)
+        if name not in stable_names:
+            continue
+
+        x1, y1, x2, y2 = [int(round(value)) for value in bbox]
+        label = f"{name} {confidence:.2f}"
+        color = (20, 184, 166)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        label_size, baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.58, 2)
+        label_y = max(y1, label_size[1] + baseline + 4)
+        cv2.rectangle(
+            frame,
+            (x1, label_y - label_size[1] - baseline - 4),
+            (x1 + label_size[0] + 8, label_y),
+            color,
+            -1,
+        )
+        cv2.putText(
+            frame,
+            label,
+            (x1 + 4, label_y - baseline - 2),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.58,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+
+    return frame
 
 
 def _bgr_to_qimage(frame: np.ndarray) -> QImage:

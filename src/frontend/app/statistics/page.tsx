@@ -17,7 +17,7 @@ import { getStatistics } from "@/lib/api";
 import { StatisticsCharts } from "./statistics-charts";
 
 export const metadata = {
-  title: "统计分析 | TCM-SliceAI",
+  title: "药材统计计数 | TCM-SliceAI",
 };
 
 function formatNumber(value: number, digits = 0) {
@@ -135,10 +135,10 @@ export default async function StatisticsPage() {
                 ECharts Analytics
               </Badge>
               <h1 className="max-w-3xl text-balance text-3xl font-semibold leading-tight sm:text-4xl">
-                统计分析
+                药材统计计数
               </h1>
               <p className="mt-3 max-w-2xl text-pretty text-sm leading-6 text-muted-foreground sm:text-base">
-                汇总检测次数、类别分布与时间趋势，辅助观察模型在不同饮片类别上的识别表现。
+                汇总检测次数、每味药材识别数量、类别占比与时间趋势，用于验收识别效果和后续盘点统计。
               </p>
             </div>
             <Button asChild>

@@ -18,7 +18,11 @@ def parse_args() -> argparse.Namespace:
     """Parse deployment packaging options."""
 
     parser = argparse.ArgumentParser(description="Prepare Raspberry Pi deployment package.")
-    parser.add_argument("--weights", default=None, help="Optional source best.pt.")
+    parser.add_argument(
+        "--weights",
+        default=None,
+        help="Optional source best.pt. Defaults to the final GhostConv lightweight model when available.",
+    )
     parser.add_argument("--output", default="dist/raspberry_pi")
     parser.add_argument("--imgsz", type=int, default=416)
     parser.add_argument("--skip-export", action="store_true", help="Reuse existing best.* artifacts.")
@@ -64,6 +68,8 @@ def write_manifest(output_dir: Path, imgsz: int) -> Path:
         "name": "TCM-Herb-Detection Raspberry Pi Package",
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "imgsz": imgsz,
+        "recommended_model": "Baseline+GhostConv",
+        "deployment_note": "Raspberry Pi 5 without accelerator prioritizes GhostConv for speed; web/desktop use CBAM+BiFPN.",
         "artifacts": sorted(path.name for path in output_dir.iterdir()),
         "entrypoints": {
             "camera_web": "python pi_camera_web.py",

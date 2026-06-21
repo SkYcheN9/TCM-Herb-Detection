@@ -50,6 +50,10 @@ export type DetectionApiItem = {
 
 export type DetectApiResponse = {
   count: number;
+  class_counts: Record<string, number>;
+  chinese_class_counts: Record<string, number>;
+  image_width?: number | null;
+  image_height?: number | null;
   detections: DetectionApiItem[];
 };
 

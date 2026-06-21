@@ -31,6 +31,25 @@ from ..services.model_locator import find_best_model
 from ..widgets.layout import Page, SectionCard, VideoPanel
 
 
+CHINESE_CLASS_NAMES = {
+    "zexie": "泽泻",
+    "niuxi": "牛膝",
+    "gaoliangjiang": "高良姜",
+    "mudanpi": "牡丹皮",
+    "yuzhu": "玉竹",
+    "baizhi": "白芷",
+    "baishao": "白芍",
+    "dazao": "大枣",
+    "danshen": "丹参",
+    "gancao": "甘草",
+    "baixianpi": "白鲜皮",
+    "baihe": "百合",
+    "sangzhi": "桑枝",
+    "jiegeng": "桔梗",
+    "banlangen": "板蓝根",
+}
+
+
 class DetectionView(Page):
     """Main detection workspace."""
 
@@ -191,7 +210,7 @@ class DetectionView(Page):
         status_grid.addWidget(self.gpu_value, 4, 1)
         self.status_card.layout.addLayout(status_grid)
 
-        self.classes_card = SectionCard("类别统计", self)
+        self.classes_card = SectionCard("药材计数", self)
         self.class_counts = QVBoxLayout()
         self.class_counts.setSpacing(8)
         self.classes_card.layout.addLayout(self.class_counts)
@@ -512,7 +531,7 @@ class _ClassCountRow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        name_label = BodyLabel(name, self)
+        name_label = BodyLabel(CHINESE_CLASS_NAMES.get(name, name), self)
         value_label = QLabel(str(count), self)
         value_label.setObjectName("statusPill")
         value_label.setAlignment(Qt.AlignCenter)

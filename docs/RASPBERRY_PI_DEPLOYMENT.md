@@ -1,7 +1,8 @@
 # Raspberry Pi 5 部署方案
 
 目标设备：Raspberry Pi 5 8GB  
-目标性能：实时摄像头识别 >= 10FPS  
+目标性能：实时摄像头识别尽量接近或超过 10FPS  
+推荐模型：`Baseline+GhostConv`，其 11 组消融中速度最高，mAP50-95 为 0.79822  
 推荐运行格式：OpenVINO 优先，ONNX 备用，PyTorch 只做基线对比
 
 ## 1. 导出模型
@@ -10,6 +11,12 @@
 
 ```bash
 python export.py
+```
+
+默认会优先导出最终轻量化模型：
+
+```text
+final_results_full/reports/ablation/runs/baseline_ghostconv/weights/best.pt
 ```
 
 默认生成：
@@ -21,7 +28,7 @@ best_openvino/
 export_manifest.json
 ```
 
-默认导出尺寸为 `416`。这是给 Raspberry Pi 5 的实时识别档位；如果精度优先可改为 `640`，如果 FPS 不足可改为 `320`：
+默认导出尺寸为 `416`。这是给 Raspberry Pi 5 无算力棒部署的实时识别档位；如果精度优先可改为 `640`，如果 FPS 不足可改为 `320`：
 
 ```bash
 python export.py --imgsz 320
@@ -134,11 +141,17 @@ python deployment/raspberry_pi/pi_camera_web.py --model best.pt --backend pytorc
 
 | 场景 | 后端 | imgsz | 目标 |
 | --- | --- | --- | --- |
-| 验收实时识别 | OpenVINO | 416 | 10FPS+ |
+| 验收实时识别 | OpenVINO | 416 | 接近或超过 10FPS |
 | FPS 优先 | OpenVINO | 320 | 15FPS 目标 |
 | 精度优先 | OpenVINO | 640 | 低 FPS，高召回 |
 | 对比测试 | ONNX | 416 | 备用结果 |
 | 基线测试 | PyTorch | 416 | CPU 基准 |
+
+部署选型说明：
+
+- 网页端/桌面端默认使用 `Baseline+CBAM+BiFPN`，mAP50-95 为 0.80076，速度 302.73 FPS。
+- 最高精度模型为 `Baseline+CBAM`，mAP50-95 为 0.80125。
+- 树莓派 5 8G 无算力棒默认使用 `Baseline+GhostConv`，mAP50-95 为 0.79822，速度 306.11 FPS，模型更适合 CPU/OpenVINO 轻量部署。
 
 优化顺序：
 

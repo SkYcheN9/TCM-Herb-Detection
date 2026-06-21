@@ -1,0 +1,15 @@
+enable_cbam: true
+enable_bifpn: true
+enable_focal_loss: false
+enable_ghostconv: true
+enable_decoupled_head: false
+model: models/yolov8n_cbam_bifpn_ghost.yaml
+data: dataset/data.yaml
+epochs: 100
+imgsz: 640
+batch_gpu: 16
+batch_cpu: 4
+workers: 4
+seed: 42
+project: runs
+name: cbam_bifpn_ghost

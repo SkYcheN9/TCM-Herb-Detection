@@ -97,6 +97,7 @@ def detect_image_file(
         verbose=False,
     )[0]
     elapsed_ms = max((time.perf_counter() - started) * 1000.0, 0.001)
+    image_height, image_width = _result_image_size(result)
 
     detections = _extract_detections(result)
     class_counts = dict(Counter(item["class_name"] for item in detections))
@@ -128,6 +129,8 @@ def detect_image_file(
             elapsed_ms=elapsed_ms,
             class_counts=class_counts,
             detections=detections,
+            image_width=image_width,
+            image_height=image_height,
         )
 
     return DetectImageResponse(
@@ -142,6 +145,8 @@ def detect_image_file(
         fps=history.fps,
         total_count=history.total_count,
         class_counts=history.class_counts,
+        image_width=image_width,
+        image_height=image_height,
         detections=history.detections,
         created_at=history.created_at,
         status=history.status,
@@ -259,6 +264,13 @@ def detect_video_file(
 
     return DetectApiResponse(
         count=len(all_detections),
+        class_counts=class_counts,
+        chinese_class_counts={
+            CHINESE_CLASS_NAMES.get(class_name, class_name): count
+            for class_name, count in class_counts.items()
+        },
+        image_width=width or None,
+        image_height=height or None,
         detections=[
             DetectionApiItem(
                 bbox=BBox(**item["bbox"]),
@@ -302,6 +314,16 @@ def _extract_detections(result: object) -> list[dict[str, object]]:
     return detections
 
 
+def _result_image_size(result: object) -> tuple[int | None, int | None]:
+    """Return original image size as height, width."""
+
+    image = getattr(result, "orig_img", None)
+    shape = getattr(image, "shape", None)
+    if shape and len(shape) >= 2:
+        return int(shape[0]), int(shape[1])
+    return None, None
+
+
 def _class_name(class_id: int, names: object) -> str:
     """Resolve class name from model metadata or fixed project classes."""
 
@@ -334,6 +356,8 @@ def _transient_response(
     elapsed_ms: float,
     class_counts: dict[str, int],
     detections: list[dict[str, object]],
+    image_width: int | None,
+    image_height: int | None,
 ) -> object:
     """Build a response-shaped object for non-persisted calls."""
 
@@ -350,6 +374,8 @@ def _transient_response(
         fps=1000.0 / elapsed_ms,
         total_count=len(detections),
         class_counts=class_counts,
+        image_width=image_width,
+        image_height=image_height,
         detections=[
             DetectionItem(
                 bbox=BBox(**item["bbox"]),

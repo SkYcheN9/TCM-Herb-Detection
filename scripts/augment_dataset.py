@@ -165,27 +165,41 @@ def clean_output(output_root: Path) -> None:
             if path.is_file() and path.name != ".gitkeep":
                 path.unlink()
 
+    labels_root = output_root / "labels"
+    labels_root.mkdir(parents=True, exist_ok=True)
+    for cache_path in labels_root.glob("*.cache"):
+        cache_path.unlink()
+
 
 def build_albumentations_pipeline(imgsz: int):
-    """Build the required offline augmentation pipeline."""
+    """Build an explicit offline augmentation pipeline for train copies.
+
+    HSV jitter and bbox-safe random crop are kept as first-class transforms
+    instead of being hidden inside a generic Albumentations branch, so the
+    generated dataset visibly uses every strategy required by the project.
+    """
 
     album = import_albumentations()
     return album.Compose(
         [
-            album.OneOf(
-                [
-                    album.RandomBrightnessContrast(p=1.0),
-                    album.HueSaturationValue(p=1.0),
-                    album.CLAHE(p=1.0),
-                ],
-                p=0.85,
+            album.HueSaturationValue(
+                hue_shift_limit=12,
+                sat_shift_limit=30,
+                val_shift_limit=20,
+                p=1.0,
             ),
+            album.RandomBrightnessContrast(
+                brightness_limit=0.2,
+                contrast_limit=0.2,
+                p=0.65,
+            ),
+            album.CLAHE(p=0.35),
             album.HorizontalFlip(p=0.5),
             album.RandomSizedBBoxSafeCrop(
                 height=imgsz,
                 width=imgsz,
                 erosion_rate=0.1,
-                p=0.45,
+                p=1.0,
             ),
         ],
         bbox_params=album.BboxParams(

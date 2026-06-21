@@ -9,12 +9,12 @@
 | LabelImg/YOLO 标准格式 | 已实现 | `scripts/check_dataset.py`、`src/tcm_slice_ai/dataset.py` |
 | 固定 15 类类别顺序 | 已实现 | `dataset/classes.txt`、`dataset/data.yaml`、`src/tcm_slice_ai/constants.py` |
 | 缺失标注、空标注、越界类别、bbox 格式检查 | 已实现 | `scripts/check_dataset.py` |
-| 训练/验证集 7:3 或 8:2 划分 | 已实现 | `scripts/prepare_dataset.py`，当前 771/193，约 8:2 |
+| 训练/验证集 7:3 或 8:2 划分 | 已实现 | `scripts/prepare_dataset.py`，当前 838/211，约 8:2 |
 | 模糊、无效、重复图像清洗 | 已补充 | `scripts/clean_dataset.py` 检查可读性、分辨率、模糊度、精确重复、近似重复和标签问题 |
 | Albumentations 离线增强 | 已补充 | `scripts/augment_dataset.py` |
 | Mosaic、MixUp、HSV、随机裁剪 | 已补充 | `scripts/augment_dataset.py` 支持 Mosaic、MixUp、HueSaturationValue、RandomCropFromBorders |
 | RandomBrightnessContrast、HorizontalFlip、CLAHE | 已补充 | `scripts/augment_dataset.py` |
-| 正式增强数据集 | 已生成 | `dataset_augmented/data.yaml`，训练集 1942 张，验证集 193 张 |
+| 正式增强数据集 | 已生成 | `dataset_augmented/data.yaml`，训练集 3014 张，验证集 211 张，总计 3225 对样本 |
 
 ## 系统功能要求
 
@@ -54,14 +54,16 @@
 | Baseline+CBAM | 已实现 | `scripts/ablation.py` |
 | Baseline+CBAM+BiFPN | 已实现 | `scripts/ablation.py` |
 | Baseline+CBAM+BiFPN+Focal | 已实现 | `scripts/ablation.py` |
+| Baseline+BiFPN / Baseline+Focal / Baseline+GhostConv / Baseline+DecoupledHead | 已实现 | `scripts/ablation.py --experiments extended` |
+| Baseline+CBAM+BiFPN+GhostConv / +DecoupledHead | 已实现 | `scripts/ablation.py --experiments candidate` |
 | FullModel | 已实现 | `configs/full_model.yaml` |
 | mAP50、mAP50-95、Precision、Recall、FPS | 已实现 | `reports/ablation/summary.csv` / `summary.xlsx` |
 | CSV、Excel 导出 | 已实现 | `scripts/ablation.py` |
 | PR、Loss、mAP 曲线 | 已实现 | `scripts/ablation.py` |
 | 混淆矩阵 | 已实现 | Ultralytics `plots=True`，`evaluate.py` 与 `ablation.py` 会生成 |
-| 类别统计图 | 部分实现 | 后端/前端/桌面端提供类别统计；独立离线统计图脚本尚未单独拆分 |
+| 类别统计图 | 已实现 | 后端/前端/桌面端提供类别统计与药材计数总览；训练侧结果图由 Ultralytics 和 `ablation.py` 生成 |
 
-正式 5 组 CUDA 消融训练已完成，输出位于 `reports/ablation`。当前精度最高的是 Baseline：`mAP50=0.94706`、`mAP50-95=0.74452`；CBAM 与 CBAM+BiFPN 均保持 `mAP50 > 0.92`；Focal Loss 与 FullModel 在当前 100 epoch 和默认 Focal 参数下欠收敛，作为后续优化方向保留。
+最终 11 组公平消融训练已完成，输出位于 `final_results_full/reports/ablation` 和 `final_results_full/reports/ablation_candidate_results/reports/ablation_candidate`。最高精度模型是 `Baseline+CBAM`：`mAP50=0.99227`、`mAP50-95=0.80125`；网页端/桌面端默认部署 `Baseline+CBAM+BiFPN`：`mAP50=0.99162`、`mAP50-95=0.80076`、`FPS=302.73`；树莓派端部署 `Baseline+GhostConv`：`mAP50=0.98915`、`mAP50-95=0.79822`、`FPS=306.11`。Focal Loss 与 FullModel 已完成实验，但作为负向消融结论保留。
 
 ## 自动化脚本
 
@@ -92,6 +94,5 @@
 ## 仍需现场或后续实验确认的事项
 
 1. 复杂干扰样本现场验收效果需要教师提供新样本后验证。
-2. FullModel 已完成完整训练，但当前结果未达到 `mAP50 >= 90%`、`mAP50-95 >= 70%`；需要继续调 Focal 参数、预训练策略或更长训练。
-3. CPU、树莓派 FPS 目标需要在对应设备实测，`benchmark.py` 和 `benchmark_pi.py` 已提供测试入口。
-4. RTSP 独立接口和 UI 入口尚未专门封装，若验收明确要求 RTSP，需要继续补 API 与界面。
+2. CPU、树莓派 FPS 目标需要在对应设备实测，`benchmark.py` 和 `benchmark_pi.py` 已提供测试入口。
+3. RTSP 独立接口和 UI 入口尚未专门封装，若验收明确要求 RTSP，需要继续补 API 与界面。

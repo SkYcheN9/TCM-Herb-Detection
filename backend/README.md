@@ -6,6 +6,8 @@
 - `history`：检测记录查询、详情、删除、清空
 - `statistics`：类别分布、检测次数、时间趋势、平均 FPS
 
+检测接口会返回总目标数、英文类别计数和中文药材计数，便于网页端/桌面端直接展示每味药材数量。
+
 ## 安装依赖
 
 ```powershell
@@ -38,11 +40,16 @@ http://127.0.0.1:8000/redoc
 
 模型会自动优先选择：
 
-1. `runs/baseline/weights/best.pt`
-2. `reports/ablation/runs/baseline/weights/best.pt`
-3. `runs/detect/runs/baseline/weights/best.pt`
-4. `yolo26n.pt`
-5. `yolov8n.pt`
+1. `final_results_full/reports/ablation/runs/baseline_cbam_bifpn/weights/best.pt`
+2. `final_results_full/reports/ablation/runs/baseline_cbam/weights/best.pt`
+3. `final_results_full/reports/ablation/runs/baseline_ghostconv/weights/best.pt`
+4. `runs/baseline/weights/best.pt`
+5. `reports/ablation/runs/baseline/weights/best.pt`
+6. `runs/detect/runs/baseline/weights/best.pt`
+7. `yolo26n.pt`
+8. `yolov8n.pt`
+
+默认优先部署 `Baseline+CBAM+BiFPN`，最高精度参考模型为 `Baseline+CBAM`，树莓派轻量端使用 `Baseline+GhostConv`。
 
 也可以在 `/detect/image` 的 `model_path` 表单字段中指定模型路径。
 

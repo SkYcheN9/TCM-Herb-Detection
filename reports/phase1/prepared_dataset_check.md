@@ -1,8 +1,8 @@
 # Dataset Check Report
 
-- Images: 964
-- Labels: 964
-- Valid samples: 964
+- Images: 1049
+- Labels: 1049
+- Valid samples: 1049
 - Blocking issues: 0
 - Class order: OK
 
@@ -26,18 +26,18 @@
 
 ## Object Counts
 
-- `0 zexie`: 331
-- `1 niuxi`: 322
-- `2 gaoliangjiang`: 326
-- `3 mudanpi`: 307
-- `4 yuzhu`: 304
-- `5 baizhi`: 315
-- `6 baishao`: 296
-- `7 dazao`: 314
-- `8 danshen`: 310
-- `9 gancao`: 324
-- `10 baixianpi`: 321
-- `11 baihe`: 324
-- `12 sangzhi`: 312
-- `13 jiegeng`: 303
-- `14 banlangen`: 285
+- `0 zexie`: 363
+- `1 niuxi`: 328
+- `2 gaoliangjiang`: 343
+- `3 mudanpi`: 297
+- `4 yuzhu`: 324
+- `5 baizhi`: 363
+- `6 baishao`: 309
+- `7 dazao`: 386
+- `8 danshen`: 319
+- `9 gancao`: 363
+- `10 baixianpi`: 350
+- `11 baihe`: 373
+- `12 sangzhi`: 371
+- `13 jiegeng`: 316
+- `14 banlangen`: 314

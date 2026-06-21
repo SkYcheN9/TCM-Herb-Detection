@@ -181,6 +181,7 @@ def resolve_model_and_name(
         (True, True, False, False): "models/yolov8n_cbam_bifpn.yaml",
         (False, False, True, False): "models/yolov8n_ghost.yaml",
         (False, False, False, True): "models/yolov8n_decoupled.yaml",
+        (True, True, True, False): "models/yolov8n_cbam_bifpn_ghost.yaml",
         (True, True, True, True): "models/yolov8n_full.yaml",
     }
     name_by_feature = {
@@ -190,6 +191,7 @@ def resolve_model_and_name(
         (True, True, False, False): "cbam_bifpn",
         (False, False, True, False): "ghostconv",
         (False, False, False, True): "decoupled_head",
+        (True, True, True, False): "cbam_bifpn_ghost",
         (True, True, True, True): "full_model",
     }
     if feature_flags not in model_by_feature and args.model is None and "model" not in config:

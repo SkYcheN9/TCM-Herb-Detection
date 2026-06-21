@@ -54,7 +54,10 @@ class SettingsView(Page):
         path_grid.setVerticalSpacing(12)
         for row, (label, placeholder) in enumerate(
             [
-                ("模型权重", "runs/baseline/weights/best.pt"),
+                (
+                    "模型权重",
+                    "final_results_full/reports/ablation/runs/baseline_cbam_bifpn/weights/best.pt",
+                ),
                 ("导出目录", "reports/desktop_exports"),
                 ("历史数据库", "src/desktop/data/history.db"),
             ]

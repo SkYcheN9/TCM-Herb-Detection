@@ -134,6 +134,30 @@ EXPERIMENTS = [
         enable_decoupled_head=False,
     ),
     Experiment(
+        key="cbam_bifpn_ghost",
+        display_name="Baseline+CBAM+BiFPN+GhostConv",
+        config="configs/cbam_bifpn_ghost.yaml",
+        run_name="baseline_cbam_bifpn_ghost",
+        enable_cbam=True,
+        enable_bifpn=True,
+        enable_focal_loss=False,
+        enable_ghostconv=True,
+        enable_decoupled_head=False,
+        suite="candidate",
+    ),
+    Experiment(
+        key="cbam_bifpn_ghost_decoupled",
+        display_name="Baseline+CBAM+BiFPN+GhostConv+DecoupledHead",
+        config="configs/cbam_bifpn_ghost_decoupled.yaml",
+        run_name="baseline_cbam_bifpn_ghost_decoupled",
+        enable_cbam=True,
+        enable_bifpn=True,
+        enable_focal_loss=False,
+        enable_ghostconv=True,
+        enable_decoupled_head=True,
+        suite="candidate",
+    ),
+    Experiment(
         key="full_model",
         display_name="FullModel",
         config="configs/full_model.yaml",
@@ -193,7 +217,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--experiments",
         default="default",
-        help="default, extended, all, or comma-separated experiment keys.",
+        help="default, extended, candidate, all, or comma-separated experiment keys.",
     )
     parser.add_argument(
         "--init",
@@ -229,7 +253,9 @@ def selected_experiments(selection: str) -> list[Experiment]:
     if normalized == "default":
         return [experiment for experiment in EXPERIMENTS if experiment.suite == "default"]
     if normalized == "extended":
-        return list(EXPERIMENTS)
+        return [experiment for experiment in EXPERIMENTS if experiment.suite != "candidate"]
+    if normalized == "candidate":
+        return [experiment for experiment in EXPERIMENTS if experiment.suite == "candidate"]
     keys = {item.strip() for item in selection.split(",") if item.strip()}
     known = {experiment.key for experiment in EXPERIMENTS}
     unknown = sorted(keys - known)

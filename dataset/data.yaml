@@ -1,4 +1,3 @@
-path: D:/Study/Work/Comprehensive/dataset
 train: images/train
 val: images/val
 nc: 15

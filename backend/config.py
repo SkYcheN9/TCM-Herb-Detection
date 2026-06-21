@@ -21,9 +21,9 @@ class Settings(BaseModel):
     upload_dir: Path = BACKEND_ROOT / "data" / "uploads"
     output_dir: Path = BACKEND_ROOT / "data" / "outputs"
     export_dir: Path = BACKEND_ROOT / "data" / "exports"
-    default_confidence: float = 0.25
-    default_iou: float = 0.45
-    default_image_size: int = 640
+    default_confidence: float = 0.55
+    default_iou: float = 0.50
+    default_image_size: int = 960
     docs_url: str = "/docs"
     redoc_url: str = "/redoc"
     openapi_url: str = "/openapi.json"

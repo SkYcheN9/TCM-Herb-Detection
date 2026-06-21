@@ -17,7 +17,7 @@ class DashboardView(Page):
         super().__init__(
             "dashboardView",
             "Dashboard",
-            "实时掌握检测工作站状态、模型能力和近期任务概览。",
+            "最终实验、模型部署与检测统计总览。",
             parent,
         )
 
@@ -36,7 +36,7 @@ class DashboardView(Page):
         title.setObjectName("heroTitle")
         title.setStyleSheet("color: #F8FAFC; font-size: 22px; font-weight: 700;")
         detail = BodyLabel(
-            "面向 15 类中医药饮片的检测、计数与结果追踪。当前阶段已完成训练侧 Phase 1，桌面端正在进入客户端开发。",
+            "面向 15 类中医药饮片的检测、识别、计数与结果追踪。当前 11 组消融实验、网页端、桌面端和树莓派端部署链路均已完成。",
             hero,
         )
         detail.setObjectName("heroBody")
@@ -60,10 +60,10 @@ class DashboardView(Page):
         right = QGridLayout()
         right.setHorizontalSpacing(10)
         right.setVerticalSpacing(10)
-        right.addWidget(_StatusPill("模型状态", "Baseline 可用", "statusPill", hero), 0, 0)
-        right.addWidget(_StatusPill("运行设备", "GPU 优先", "statusPill", hero), 0, 1)
-        right.addWidget(_StatusPill("Detector", "待接入", "warningPill", hero), 1, 0)
-        right.addWidget(_StatusPill("数据集", "15 类固定", "statusPill", hero), 1, 1)
+        right.addWidget(_StatusPill("默认模型", "CBAM+BiFPN", "statusPill", hero), 0, 0)
+        right.addWidget(_StatusPill("最高精度", "CBAM 80.12%", "statusPill", hero), 0, 1)
+        right.addWidget(_StatusPill("树莓派端", "GhostConv", "statusPill", hero), 1, 0)
+        right.addWidget(_StatusPill("数据集", "15 类 / 3225 样本", "statusPill", hero), 1, 1)
 
         hero_layout.addLayout(left, 3)
         hero_layout.addLayout(right, 2)
@@ -72,10 +72,10 @@ class DashboardView(Page):
         add_metric_grid(
             self.root_layout,
             [
-                ("类别数量", "15", "饮片类别顺序固定"),
-                ("Baseline mAP50", "94.04%", "Phase 1 最优验证结果"),
-                ("验证样本", "193", "规范化验证集数量"),
-                ("Smoke FPS", "169.4", "消融流程快速验证记录"),
+                ("消融模型", "11", "公平预训练迁移与候选组合均已完成"),
+                ("部署 mAP50-95", "80.08%", "CBAM+BiFPN 平衡精度与速度"),
+                ("最高 mAP50-95", "80.12%", "CBAM 单模块精度最高"),
+                ("树莓派模型", "GhostConv", "轻量化部署优先"),
             ],
         )
 
@@ -85,17 +85,20 @@ class DashboardView(Page):
         pipeline = SectionCard("工作流", self)
         pipeline.layout.addWidget(TagRow(["Image", "Video", "Camera", "RTSP", "Batch"], pipeline))
         for step, text in [
-            ("01", "选择输入源并加载待检测素材"),
+            ("01", "选择摄像头、图片或视频输入源"),
             ("02", "调用统一 Detector 接口完成识别"),
-            ("03", "展示 bbox、类别、置信度与计数"),
-            ("04", "保存记录并支持后续导出"),
+            ("03", "展示 bbox、类别、置信度与药材计数"),
+            ("04", "保存记录并支持历史查询与导出"),
         ]:
             pipeline.layout.addWidget(_TimelineItem(step, text, pipeline))
 
-        model = SectionCard("模型能力", self)
-        model.layout.addWidget(BodyLabel("当前已实现模块", model))
-        model.layout.addWidget(TagRow(["YOLOv8", "CBAM", "BiFPN", "Focal Loss"], model))
-        note = BodyLabel("GhostConv 与 Decoupled Head 属于后续模型阶段，本桌面端不会修改训练或模型代码。", model)
+        model = SectionCard("模型部署", self)
+        model.layout.addWidget(BodyLabel("最终选型", model))
+        model.layout.addWidget(TagRow(["YOLOv8n", "CBAM", "BiFPN", "GhostConv"], model))
+        note = BodyLabel(
+            "网页端和桌面端默认使用 CBAM+BiFPN；最高精度结果为 CBAM；树莓派 5 无算力棒部署使用 GhostConv 轻量模型。Focal Loss 与 FullModel 已保留为负向消融结论。",
+            model,
+        )
         note.setObjectName("mutedLabel")
         note.setWordWrap(True)
         model.layout.addWidget(note)

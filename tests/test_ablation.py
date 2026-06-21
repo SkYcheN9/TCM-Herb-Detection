@@ -38,11 +38,23 @@ class AblationTestCase(unittest.TestCase):
 
     def test_extended_experiments_includes_single_module_runs(self) -> None:
         selected = selected_experiments("extended")
+        keys = [experiment.key for experiment in selected]
 
-        self.assertIn("bifpn", [experiment.key for experiment in selected])
-        self.assertIn("focal", [experiment.key for experiment in selected])
-        self.assertIn("ghostconv", [experiment.key for experiment in selected])
-        self.assertIn("decoupled_head", [experiment.key for experiment in selected])
+        self.assertIn("bifpn", keys)
+        self.assertIn("focal", keys)
+        self.assertIn("ghostconv", keys)
+        self.assertIn("decoupled_head", keys)
+        self.assertEqual(len(keys), 9)
+        self.assertNotIn("cbam_bifpn_ghost", keys)
+
+    def test_candidate_experiments_only_selects_clean_combinations(self) -> None:
+        selected = selected_experiments("candidate")
+
+        self.assertEqual(
+            [experiment.key for experiment in selected],
+            ["cbam_bifpn_ghost", "cbam_bifpn_ghost_decoupled"],
+        )
+        self.assertTrue(all(not experiment.enable_focal_loss for experiment in selected))
 
     def test_train_command_overrides_common_training_options(self) -> None:
         args = argparse.Namespace(

@@ -63,3 +63,4 @@ env/
 /export_manifest.json
 /dist/
 /reports/pi_benchmark.csv
+/final_results_full/

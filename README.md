@@ -1,6 +1,6 @@
 # TCM-SliceAI YOLOv8 训练与消融实验
 
-当前已完成数据集规范化、Ultralytics YOLOv8 Baseline 训练入口，以及 5 个实质性改进方向：CBAM 注意力、BiFPN Neck、Focal Loss、GhostConv 轻量化骨干、Decoupled Head 解耦检测头。
+当前已完成数据集规范化、离线数据增强、Ultralytics YOLOv8 Baseline 训练入口，以及 5 个实质性改进方向：CBAM 注意力、BiFPN Neck、Focal Loss、GhostConv 轻量化骨干、Decoupled Head 解耦检测头。最终 11 组公平消融实验均已完成，网页端和桌面端默认部署 `Baseline+CBAM+BiFPN`，树莓派 5 无算力棒端默认部署 `Baseline+GhostConv`。
 
 ## 已完成内容
 
@@ -72,7 +72,7 @@ python -m venv .venv
 生成离线增强数据集：
 
 ```bash
-.\.venv\Scripts\python.exe scripts/augment_dataset.py --dataset-root dataset --output dataset_augmented --copies 1 --mosaic-count 200 --mixup-count 200
+.\.venv\Scripts\python.exe scripts/augment_dataset.py --dataset-root dataset --output dataset_augmented --copies 2 --mosaic-count 250 --mixup-count 250
 ```
 
 训练 Baseline：
@@ -109,6 +109,18 @@ python -m venv .venv
 
 ```bash
 .\.venv\Scripts\python.exe train.py --config configs/cbam_bifpn_focal.yaml
+```
+
+训练 CBAM + BiFPN + GhostConv 候选版本：
+
+```bash
+.\.venv\Scripts\python.exe train.py --config configs/cbam_bifpn_ghost.yaml
+```
+
+训练 CBAM + BiFPN + GhostConv + Decoupled Head 候选版本：
+
+```bash
+.\.venv\Scripts\python.exe train.py --config configs/cbam_bifpn_ghost_decoupled.yaml
 ```
 
 训练 GhostConv 轻量化骨干版本：
@@ -167,7 +179,7 @@ python -m venv .venv
 
 ## 消融实验
 
-一键训练并验证 5 组实验：
+一键训练并验证默认实验组：
 
 ```bash
 .\.venv\Scripts\python.exe scripts/ablation.py
@@ -183,6 +195,16 @@ Baseline+CBAM+BiFPN+Focal
 FullModel (GhostConv+CBAM+BiFPN+DecoupledHead+Focal)
 ```
 
+正式 11 组实验由两部分组成：
+
+```bash
+# 9 组主消融
+.\.venv\Scripts\python.exe scripts/ablation.py --experiments extended --data dataset_augmented\data.yaml --epochs 150 --imgsz 640 --batch 16 --workers 8 --device 0 --init pretrained --pretrained-weights yolov8n.pt
+
+# 2 组 GhostConv 组合候选
+.\.venv\Scripts\python.exe scripts/ablation.py --experiments candidate --output reports/ablation_candidate --data dataset_augmented\data.yaml --epochs 150 --imgsz 640 --batch 16 --workers 8 --device 0 --init pretrained --pretrained-weights yolov8n.pt
+```
+
 消融实验输出保存到 `reports/ablation`：
 
 - `summary.csv`：Precision、Recall、mAP50、mAP50-95、FPS 汇总
@@ -194,28 +216,47 @@ FullModel (GhostConv+CBAM+BiFPN+DecoupledHead+Focal)
 - `runs/`：各实验训练输出
 - `val/`：各实验验证输出
 
-本机 CUDA 正式消融训练使用增强数据集和较稳的 batch 设置：
+本机 CUDA 快速复现实验可使用增强数据集和较稳的 batch 设置：
 
 ```bash
 .\.venv\Scripts\python.exe scripts/ablation.py --data dataset_augmented\data.yaml --epochs 100 --imgsz 640 --batch 8 --workers 0 --device auto
 ```
 
-正式结果摘要：
+最终 11 组实验结果摘要：
 
 | 实验 | mAP50 | mAP50-95 | FPS |
 | --- | ---: | ---: | ---: |
-| Baseline | 0.94706 | 0.74452 | 144.91 |
-| Baseline+CBAM | 0.92953 | 0.72314 | 148.42 |
-| Baseline+CBAM+BiFPN | 0.92321 | 0.71355 | 167.94 |
-| Baseline+CBAM+BiFPN+Focal | 0.61593 | 0.47776 | 95.43 |
-| FullModel | 0.52885 | 0.40597 | 60.29 |
+| Baseline+CBAM | 0.99227 | 0.80125 | 242.11 |
+| Baseline+CBAM+BiFPN | 0.99162 | 0.80076 | 302.73 |
+| Baseline+GhostConv | 0.98915 | 0.79822 | 306.11 |
+| Baseline | 0.99118 | 0.79532 | 304.50 |
+| Baseline+DecoupledHead | 0.99133 | 0.79500 | 235.72 |
+| Baseline+CBAM+BiFPN+GhostConv+DecoupledHead | 0.99026 | 0.79446 | 280.49 |
+| Baseline+BiFPN | 0.99251 | 0.79234 | 299.28 |
+| Baseline+CBAM+BiFPN+GhostConv | 0.98853 | 0.79027 | 287.42 |
+| Baseline+CBAM+BiFPN+Focal | 0.99027 | 0.78909 | 198.90 |
+| FullModel | 0.99012 | 0.78472 | 226.29 |
+| Baseline+Focal | 0.98906 | 0.78438 | 235.14 |
 
-当前精度交付权重建议使用 `reports/ablation/runs/baseline/weights/best.pt`；结构改进展示可使用 `reports/ablation/runs/baseline_cbam_bifpn/weights/best.pt`。Focal Loss 与 FullModel 已跑通，但在当前参数下欠收敛，后续需要继续调参。
+最终部署选型：
+
+- 网页端/桌面端默认使用 `Baseline+CBAM+BiFPN`：mAP50-95 为 0.80076，速度 302.73 FPS，精度几乎追平最高精度模型且速度更好。
+- 最高精度参考模型为 `Baseline+CBAM`：mAP50-95 为 0.80125。
+- 树莓派 5 8GB 无算力棒默认使用 `Baseline+GhostConv`：mAP50-95 为 0.79822，速度 306.11 FPS，更适合 CPU/OpenVINO 轻量部署。
+- Focal Loss 与 FullModel 作为负向消融结论保留，不作为部署模型。
+
+完整表格见 `docs/FINAL_MODEL_SELECTION.md`。
 
 只跑指定实验：
 
 ```bash
 .\.venv\Scripts\python.exe scripts/ablation.py --experiments baseline,cbam_bifpn_focal
+```
+
+只补跑 GhostConv 组合候选实验：
+
+```bash
+.\.venv\Scripts\python.exe scripts/ablation.py --experiments candidate --output reports/ablation_candidate --data dataset_augmented\data.yaml --epochs 150 --imgsz 640 --batch 16 --workers 8 --device 0 --init pretrained --pretrained-weights yolov8n.pt
 ```
 
 快速冒烟验证：
@@ -247,19 +288,20 @@ FullModel (GhostConv+CBAM+BiFPN+DecoupledHead+Focal)
 导出 `.pt`、`.onnx`、`.torchscript`、OpenVINO、NCNN：
 
 ```bash
-.\.venv\Scripts\python.exe export.py --weights runs/baseline/weights/best.pt --output exports/pi
+.\.venv\Scripts\python.exe export.py --output exports/pi
 ```
 
 打包 Raspberry Pi 部署目录：
 
 ```bash
-.\.venv\Scripts\python.exe deploy_pi.py --weights runs/baseline/weights/best.pt --output dist/raspberry_pi --zip
+.\.venv\Scripts\python.exe deploy_pi.py --output dist/raspberry_pi --zip
 ```
 
 ## 当前数据检查结果
 
-- 原始数据：1049 张图片，1048 个标注文件
-- 发现 1 张图片缺失标注：`2026-06-05_10_48_20_101.jpg`
-- 发现 84 个标注文件包含 15-28 的越界类别编号
-- 规范化数据集：964 对有效样本，其中训练集 771，对验证集 193
-- 规范化后的 `dataset/` 严格检查通过，阻断问题为 0
+- 人工清洗后原始数据：1049 张图片，1049 个标注文件
+- 当前 `data/` 严格检查通过：1049 对有效样本，阻断问题为 0
+- 规范化数据集：1049 对有效样本，其中训练集 838，对验证集 211
+- 增强数据集：训练集 3014 张，验证集 211 张，总计 3225 对样本
+- `dataset/` 与 `dataset_augmented/` 均严格检查通过，阻断问题为 0
+- 每次人工修改 `data/` 后，需要重新运行 `prepare_dataset.py` 和 `augment_dataset.py`，再使用 `dataset_augmented/data.yaml` 训练

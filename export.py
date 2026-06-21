@@ -17,8 +17,10 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 PREFERRED_WEIGHTS: tuple[Path, ...] = (
-    ROOT / "runs" / "full_model" / "weights" / "best.pt",
-    ROOT / "runs" / "cbam_bifpn_focal" / "weights" / "best.pt",
+    ROOT / "final_results_full" / "reports" / "ablation" / "runs" / "baseline_ghostconv" / "weights" / "best.pt",
+    ROOT / "reports" / "ablation" / "runs" / "baseline_ghostconv" / "weights" / "best.pt",
+    ROOT / "runs" / "ghostconv" / "weights" / "best.pt",
+    ROOT / "final_results_full" / "reports" / "ablation" / "runs" / "baseline_cbam_bifpn" / "weights" / "best.pt",
     ROOT / "runs" / "cbam_bifpn" / "weights" / "best.pt",
     ROOT / "runs" / "baseline" / "weights" / "best.pt",
     ROOT / "reports" / "ablation" / "runs" / "baseline" / "weights" / "best.pt",
@@ -88,7 +90,7 @@ def register_project_modules() -> None:
         from models.losses import register_focal_loss
         from models.modules import register_ultralytics_modules
 
-        register_ultralytics_modules(enable_cbam=True, enable_bifpn=True)
+        register_ultralytics_modules(enable_cbam=True, enable_bifpn=True, enable_decoupled_head=True)
         register_focal_loss()
     except Exception as exc:  # pragma: no cover - only needed for custom checkpoints.
         print(f"Warning: project module registration skipped: {exc}")

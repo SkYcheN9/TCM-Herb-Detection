@@ -63,6 +63,16 @@ type PreviewSource = {
   height: number;
   file?: File;
 };
+type RenderBox = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+type SourceSize = {
+  width: number;
+  height: number;
+};
 
 const modeOptions = [
   { value: "camera" as const, label: "摄像头", icon: Video },
@@ -110,20 +120,25 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
   const classList = classes.length > 0 ? classes : fallbackClasses;
   const [mode, setMode] = useState<Mode>("camera");
   const [preview, setPreview] = useState<PreviewSource | null>(null);
+  const [renderBox, setRenderBox] = useState<RenderBox | null>(null);
+  const [sourceSize, setSourceSize] = useState<SourceSize | null>(null);
   const [detections, setDetections] = useState<DetectionApiItem[]>([]);
+  const [classCounts, setClassCounts] = useState<Record<string, number>>({});
   const [isDetecting, setIsDetecting] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [message, setMessage] = useState("等待输入源");
-  const [confidence, setConfidence] = useState(0.25);
-  const [iou, setIou] = useState(0.45);
-  const [imageSize, setImageSize] = useState(640);
+  const [confidence, setConfidence] = useState(0.55);
+  const [iou, setIou] = useState(0.5);
+  const [imageSize, setImageSize] = useState(960);
   const [device, setDevice] = useState<Device>("auto");
   const [autoLoop, setAutoLoop] = useState(false);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const previewImageRef = useRef<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const loopTimerRef = useRef<number | null>(null);
@@ -136,11 +151,14 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
   const spotlight = useMotionTemplate`radial-gradient(420px circle at ${smoothX}px ${smoothY}px, rgba(20, 184, 166, 0.16), transparent 48%)`;
 
   const groupedDetections = useMemo(() => {
+    if (Object.keys(classCounts).length > 0) {
+      return classCounts;
+    }
     return detections.reduce<Record<string, number>>((acc, item) => {
       acc[item.class] = (acc[item.class] ?? 0) + 1;
       return acc;
     }, {});
-  }, [detections]);
+  }, [classCounts, detections]);
 
   const topConfidence = useMemo(() => {
     return detections.reduce((max, item) => Math.max(max, item.confidence), 0);
@@ -176,6 +194,43 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
     isDetectingRef.current = isDetecting;
   }, [isDetecting]);
 
+  const updateRenderBox = useCallback(() => {
+    const stage = stageRef.current;
+    const image = previewImageRef.current;
+
+    if (!stage || !image) {
+      setRenderBox(null);
+      return;
+    }
+
+    const stageRect = stage.getBoundingClientRect();
+    const imageRect = image.getBoundingClientRect();
+    setRenderBox({
+      left: imageRect.left - stageRect.left,
+      top: imageRect.top - stageRect.top,
+      width: imageRect.width,
+      height: imageRect.height,
+    });
+  }, []);
+
+  useEffect(() => {
+    updateRenderBox();
+
+    const image = previewImageRef.current;
+    if (!image) {
+      return;
+    }
+
+    const observer = new ResizeObserver(updateRenderBox);
+    observer.observe(image);
+    window.addEventListener("resize", updateRenderBox);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateRenderBox);
+    };
+  }, [preview?.url, updateRenderBox]);
+
   const startCamera = useCallback(async () => {
     setCameraError(null);
     setMessage("正在打开摄像头");
@@ -200,6 +255,9 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
       setMode("camera");
       setIsCameraActive(true);
       setDetections([]);
+      setClassCounts({});
+      setRenderBox(null);
+      setSourceSize(null);
       setPreview(null);
       setMessage("摄像头已就绪");
     } catch {
@@ -276,6 +334,9 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
         file,
       });
       setDetections([]);
+      setClassCounts({});
+      setRenderBox(null);
+      setSourceSize(null);
       setLatencyMs(null);
       setMessage("图片已载入，可开始检测");
     },
@@ -285,6 +346,7 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
   const detectFile = useCallback(
     async (file: File, nextPreview?: PreviewSource) => {
       setIsDetecting(true);
+      setSourceSize(null);
       setMessage("正在推理");
       const startedAt = performance.now();
 
@@ -322,6 +384,12 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
         }
 
         setDetections(data.detections ?? []);
+        setClassCounts(data.class_counts ?? {});
+        setSourceSize(
+          data.image_width && data.image_height
+            ? { width: data.image_width, height: data.image_height }
+            : null,
+        );
         setLatencyMs(performance.now() - startedAt);
         setMessage(
           data.count > 0 ? `识别到 ${data.count} 个目标` : "未识别到目标",
@@ -434,12 +502,15 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
 
   const clearResult = useCallback(() => {
     setDetections([]);
+    setClassCounts({});
+    setRenderBox(null);
+    setSourceSize(null);
     setLatencyMs(null);
     setMessage("结果已清空");
   }, []);
 
-  const previewWidth = preview?.width ?? 1568;
-  const previewHeight = preview?.height ?? 1003;
+  const previewWidth = sourceSize?.width ?? preview?.width ?? 1568;
+  const previewHeight = sourceSize?.height ?? preview?.height ?? 1003;
   return (
     <div
       className="app-grid min-h-[calc(100vh-4rem)]"
@@ -517,7 +588,10 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
             </div>
 
             <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <div className="relative min-h-[420px] bg-stone-100">
+              <div
+                className="relative min-h-[420px] bg-stone-100"
+                ref={stageRef}
+              >
                 <AnimatePresence mode="wait">
                   {mode === "camera" ? (
                     <motion.div
@@ -527,17 +601,35 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
                       initial={{ opacity: 0 }}
                       key="camera"
                     >
-                      <video
-                        autoPlay
-                        className={cn(
-                          "size-full object-cover",
-                          !isCameraActive && "opacity-0",
-                        )}
-                        muted
-                        playsInline
-                        ref={videoRef}
-                      />
-                      {!isCameraActive ? (
+                      {preview ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="relative inline-block max-h-full max-w-full">
+                            <Image
+                              alt={preview.name}
+                              className="block h-auto max-h-full w-auto max-w-full object-contain"
+                              height={preview.height}
+                              onLoad={updateRenderBox}
+                              ref={previewImageRef}
+                              sizes="(min-width: 1024px) 780px, 100vw"
+                              src={preview.url}
+                              unoptimized
+                              width={preview.width}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <video
+                          autoPlay
+                          className={cn(
+                            "size-full object-contain",
+                            !isCameraActive && "opacity-0",
+                          )}
+                          muted
+                          playsInline
+                          ref={videoRef}
+                        />
+                      )}
+                      {!isCameraActive && !preview ? (
                         <EmptySource
                           icon={Camera}
                           title="打开摄像头"
@@ -562,16 +654,12 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
                               alt={preview.name}
                               className="block h-auto max-h-full w-auto max-w-full object-contain"
                               height={preview.height}
+                              onLoad={updateRenderBox}
+                              ref={previewImageRef}
                               sizes="(min-width: 1024px) 780px, 100vw"
                               src={preview.url}
                               unoptimized
                               width={preview.width}
-                            />
-                            <DetectionOverlay
-                              classes={classList}
-                              detections={detections}
-                              height={previewHeight}
-                              width={previewWidth}
                             />
                           </div>
                         </div>
@@ -602,11 +690,12 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
                   )}
                 </AnimatePresence>
 
-                {mode === "camera" && preview ? (
+                {preview && renderBox ? (
                   <DetectionOverlay
                     classes={classList}
                     detections={detections}
                     height={previewHeight}
+                    renderBox={renderBox}
                     width={previewWidth}
                   />
                 ) : null}
@@ -629,7 +718,7 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
                           <div>
                             <p className="text-sm font-medium">模型正在推理</p>
                             <p className="text-xs text-muted-foreground">
-                              YOLOv8 · CBAM · BiFPN · Focal Loss
+                              YOLOv8n · CBAM · BiFPN
                             </p>
                           </div>
                         </div>
@@ -899,8 +988,8 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
 
             <Card>
               <CardHeader>
-                <CardTitle>类别统计</CardTitle>
-                <CardDescription>本次画面中的目标分布</CardDescription>
+                <CardTitle>药材计数</CardTitle>
+                <CardDescription>本次画面中各饮片类别的数量统计</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {Object.entries(groupedDetections).length > 0 ? (
@@ -949,11 +1038,13 @@ function DetectionOverlay({
   classes,
   detections,
   height,
+  renderBox,
   width,
 }: {
   classes: ClassInfo[];
   detections: DetectionApiItem[];
   height: number;
+  renderBox: RenderBox;
   width: number;
 }) {
   return (
@@ -983,10 +1074,10 @@ function DetectionOverlay({
               key={`${item.class}-${index}`}
               style={{
                 borderColor: color,
-                height: `${boxHeight}%`,
-                left: `${left}%`,
-                top: `${top}%`,
-                width: `${boxWidth}%`,
+                height: `${(boxHeight / 100) * renderBox.height}px`,
+                left: `${renderBox.left + (left / 100) * renderBox.width}px`,
+                top: `${renderBox.top + (top / 100) * renderBox.height}px`,
+                width: `${(boxWidth / 100) * renderBox.width}px`,
               }}
               transition={{ delay: index * 0.035, type: "spring", bounce: 0.2 }}
             >

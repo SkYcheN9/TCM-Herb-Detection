@@ -445,6 +445,9 @@ def clean_split_dirs(dataset_root: Path) -> None:
             if path.is_file() and path.name != ".gitkeep":
                 path.unlink()
 
+    for cache_path in (dataset_root / "labels").glob("*.cache"):
+        cache_path.unlink()
+
 
 def place_file(source: Path, destination: Path, mode: str) -> None:
     """Copy, hardlink, or symlink a source file into the normalized dataset."""
@@ -477,7 +480,6 @@ def write_data_yaml(dataset_root: Path) -> Path:
 
     data_yaml = dataset_root / "data.yaml"
     lines = [
-        f"path: {dataset_root.resolve().as_posix()}",
         "train: images/train",
         "val: images/val",
         f"nc: {len(CLASS_NAMES)}",

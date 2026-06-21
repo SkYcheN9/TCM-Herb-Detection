@@ -20,7 +20,6 @@ import {
   Play,
   Radio,
   Settings2,
-  ShieldCheck,
   Sparkles,
   Upload,
   Video,
@@ -81,10 +80,16 @@ const workModes = [
 ];
 
 const modelPipeline = [
-  { label: "YOLOv8", value: "Baseline", icon: Box },
-  { label: "CBAM", value: "Backbone 注意力", icon: Sparkles },
-  { label: "BiFPN", value: "多尺度融合", icon: Layers3 },
-  { label: "Focal Loss", value: "分类损失优化", icon: ShieldCheck },
+  { label: "YOLOv8n", value: "预训练迁移", icon: Box },
+  { label: "CBAM", value: "最高精度 80.12%", icon: Sparkles },
+  { label: "BiFPN", value: "部署模型 80.08%", icon: Layers3 },
+  { label: "GhostConv", value: "树莓派轻量端", icon: Cpu },
+];
+
+const finalModelCards = [
+  { label: "网页/桌面端", value: "CBAM+BiFPN", detail: "mAP50-95 80.08% · 302.73 FPS" },
+  { label: "最高精度", value: "CBAM", detail: "mAP50-95 80.12%" },
+  { label: "树莓派端", value: "GhostConv", detail: "mAP50-95 79.82% · 306.11 FPS" },
 ];
 
 const fixedChineseNames = new Map([
@@ -209,13 +214,13 @@ export default async function Home() {
           <div className="max-w-2xl">
             <Badge variant="outline" className="mb-5 gap-2 bg-background/75">
               <Radio className="size-3.5 text-ok" aria-hidden="true" />
-              FastAPI 后端已接入
+              11 组消融实验已完成
             </Badge>
             <h1 className="max-w-2xl text-balance text-4xl font-semibold leading-[1.05] tracking-normal text-foreground sm:text-5xl lg:text-[3.45rem]">
-              15 类中医药饮片检测工作台
+              中医药饮片智能检测与识别系统
             </h1>
             <p className="mt-5 max-w-xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg">
-              面向课堂验收与真实部署的视觉识别首页，集中呈现实时检测入口、模型状态、类别覆盖、FPS 与历史统计。
+              项目训练、消融、迁移实验和多端部署链路已完成。网页端与桌面端默认采用 CBAM+BiFPN，树莓派端采用 GhostConv 轻量模型，并提供每味药材的实时统计计数。
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -307,10 +312,10 @@ export default async function Home() {
                     <div>
                       <p className="text-sm font-medium">模型流水线</p>
                       <p className="text-xs text-muted-foreground">
-                        Full Model 当前模块
+                        最终部署策略
                       </p>
                     </div>
-                    <Badge variant="secondary">v0.1</Badge>
+                    <Badge variant="secondary">Final</Badge>
                   </div>
                   <Separator className="my-4" />
                   <div className="space-y-3">
@@ -331,6 +336,18 @@ export default async function Home() {
                             aria-hidden="true"
                           />
                         ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <Separator className="my-4" />
+                  <div className="space-y-2">
+                    {finalModelCards.map((item) => (
+                      <div className="rounded-md border bg-background px-3 py-2" key={item.label}>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs text-muted-foreground">{item.label}</span>
+                          <span className="text-sm font-medium">{item.value}</span>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">{item.detail}</p>
                       </div>
                     ))}
                   </div>
@@ -413,7 +430,7 @@ export default async function Home() {
               <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                 <div>
                   <CardTitle>识别分布</CardTitle>
-                  <CardDescription>来自后端统计接口的类别计数</CardDescription>
+                  <CardDescription>来自检测记录的各药材累计计数</CardDescription>
                 </div>
                 <BarChart3 className="size-5 text-muted-foreground" aria-hidden="true" />
               </CardHeader>
@@ -495,7 +512,7 @@ export default async function Home() {
           <div>
             <p className="text-sm font-medium">部署目标</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              PC、平板、手机响应式访问，兼容 CPU、GPU 与 Raspberry Pi 5 推理部署。
+              网页端与桌面端优先精度和稳定性，树莓派 5 无算力棒端优先 OpenVINO/ONNX 与轻量模型实时性。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

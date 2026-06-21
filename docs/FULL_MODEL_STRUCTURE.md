@@ -48,14 +48,25 @@ Baseline 保持 `configs/baseline.yaml` 与 `yolov8n.pt`，不启用上述结构
 
 ## 正式训练结论
 
-本次 5 组 CUDA 消融训练已完成，统一使用 `dataset_augmented/data.yaml`、`epochs=100`、`imgsz=640`、`batch=8`、`workers=0`。
+最终 11 组公平消融训练已完成，统一使用增强数据集、`epochs=150`、`imgsz=640`、`batch=16`，并通过 `yolov8n.pt` 进行预训练迁移。
 
 | 实验 | mAP50 | mAP50-95 | FPS |
 | --- | ---: | ---: | ---: |
-| Baseline | 0.94706 | 0.74452 | 144.91 |
-| Baseline+CBAM | 0.92953 | 0.72314 | 148.42 |
-| Baseline+CBAM+BiFPN | 0.92321 | 0.71355 | 167.94 |
-| Baseline+CBAM+BiFPN+Focal | 0.61593 | 0.47776 | 95.43 |
-| FullModel | 0.52885 | 0.40597 | 60.29 |
+| Baseline+CBAM | 0.99227 | 0.80125 | 242.11 |
+| Baseline+CBAM+BiFPN | 0.99162 | 0.80076 | 302.73 |
+| Baseline+GhostConv | 0.98915 | 0.79822 | 306.11 |
+| Baseline | 0.99118 | 0.79532 | 304.50 |
+| Baseline+DecoupledHead | 0.99133 | 0.79500 | 235.72 |
+| Baseline+CBAM+BiFPN+GhostConv+DecoupledHead | 0.99026 | 0.79446 | 280.49 |
+| Baseline+BiFPN | 0.99251 | 0.79234 | 299.28 |
+| Baseline+CBAM+BiFPN+GhostConv | 0.98853 | 0.79027 | 287.42 |
+| Baseline+CBAM+BiFPN+Focal | 0.99027 | 0.78909 | 198.90 |
+| FullModel | 0.99012 | 0.78472 | 226.29 |
+| Baseline+Focal | 0.98906 | 0.78438 | 235.14 |
 
-当前精度交付推荐使用 Baseline best 权重；结构改进展示推荐使用 CBAM+BiFPN best 权重。FullModel 已跑通完整训练链路，但在当前 Focal 参数和训练轮数下欠收敛，后续需要继续调参或引入更长训练策略。
+最终部署并不选择 FullModel。FullModel 已验证完整训练链路和五项改进组合，但叠加 Focal Loss、GhostConv、CBAM、BiFPN 与 Decoupled Head 后 mAP50-95 低于 `Baseline+CBAM` 和 `Baseline+CBAM+BiFPN`。因此：
+
+- Web/桌面端默认使用 `Baseline+CBAM+BiFPN`
+- 最高精度参考使用 `Baseline+CBAM`
+- 树莓派端使用 `Baseline+GhostConv`
+- FullModel 和 Focal 相关模型作为负向消融结论保留

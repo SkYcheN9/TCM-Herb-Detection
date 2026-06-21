@@ -2,48 +2,26 @@
 
 ## 1. 项目背景
 
-本项目面向中医药饮片智能检测与识别场景，目标是在规范化饮片图像数据集的基础上，构建基于 Ultralytics YOLOv8 的多类别目标检测模型，实现 15 类中药饮片的定位、识别、置信度输出与计数能力。
+本项目面向中医药饮片智能检测与识别场景，目标是在规范化饮片图像数据集的基础上，构建基于 Ultralytics YOLOv8 的多类别目标检测模型，实现 15 类中药饮片的定位、识别、置信度输出与自动计数能力。
 
-当前阶段已完成数据集规范化、离线数据增强、YOLOv8 Baseline 训练、CBAM 注意力模块、BiFPN Neck、Focal Loss 分类损失替换、GhostConv 轻量化骨干、Decoupled Head 解耦检测头，以及自动化消融实验。Baseline 保持官方 `yolov8n.pt` 路径，所有改进模块均通过配置开关启用，不破坏原始训练流程。
+当前已完成数据集规范化、离线数据增强、YOLOv8 Baseline 训练、CBAM 注意力模块、BiFPN Neck、Focal Loss 分类损失替换、GhostConv 轻量化骨干、Decoupled Head 解耦检测头，以及 11 组公平消融实验。所有改进模块均通过配置开关启用，不破坏原始 Baseline 训练流程。
 
 ## 2. 数据集规模
 
 | 项目 | 数量/状态 |
 | --- | ---: |
 | 原始图片 | 1049 |
-| 原始标注文件 | 1048 |
-| 缺失标注图片 | 1 |
-| 含越界类别编号的标注文件 | 84 |
-| 规范化后有效样本 | 964 |
-| 训练集样本 | 771 |
-| 验证集样本 | 193 |
+| 原始标注文件 | 1049 |
+| 有效样本 | 1049 |
+| 训练集样本 | 838 |
+| 验证集样本 | 211 |
 | 训练/验证比例 | 约 8:2 |
 | 类别数 | 15 |
-| 规范化后阻断问题 | 0 |
+| 数据集阻断问题 | 0 |
 
 规范化后的数据集采用 YOLO 标准目录结构，配置文件为 `dataset/data.yaml`。类别顺序固定，不允许训练或检查工具自动重排类别。
 
-本次正式消融训练统一使用增强数据集 `dataset_augmented/data.yaml`。增强集由 771 张原始训练样本、771 张 Albumentations 增强样本、200 张 Mosaic 样本和 200 张 MixUp 样本组成，训练集共 1942 张；验证集保持原始 193 张不增强，以保证各模型在同一验证集上公平比较。
-
-各类别目标数量如下：
-
-| ID | 类别 | 中文名 | 目标数 |
-| ---: | --- | --- | ---: |
-| 0 | `zexie` | 泽泻 | 331 |
-| 1 | `niuxi` | 牛膝 | 322 |
-| 2 | `gaoliangjiang` | 高良姜 | 326 |
-| 3 | `mudanpi` | 牡丹皮 | 307 |
-| 4 | `yuzhu` | 玉竹 | 304 |
-| 5 | `baizhi` | 白芷 | 315 |
-| 6 | `baishao` | 白芍 | 296 |
-| 7 | `dazao` | 大枣 | 314 |
-| 8 | `danshen` | 丹参 | 310 |
-| 9 | `gancao` | 甘草 | 324 |
-| 10 | `baixianpi` | 白鲜皮 | 321 |
-| 11 | `baihe` | 百合 | 324 |
-| 12 | `sangzhi` | 桑枝 | 312 |
-| 13 | `jiegeng` | 桔梗 | 303 |
-| 14 | `banlangen` | 板蓝根 | 285 |
+正式消融训练统一使用增强数据集 `dataset_augmented/data.yaml`。增强集训练部分包含原始训练样本、Albumentations 增强样本、Mosaic 样本、MixUp 样本、HSV 扰动和随机裁剪结果；训练集共 3014 张，验证集保持 211 张不增强，总计 3225 对样本，以保证各模型在同一验证集上公平比较。
 
 ## 3. 15 类饮片
 
@@ -69,195 +47,98 @@
 
 该顺序已经写入 `dataset/classes.txt` 与 `dataset/data.yaml`，并由数据集检查工具自动校验。
 
-## 4. Baseline 结果
+## 4. 改进模块
 
-Baseline 使用 `yolov8n.pt`，训练配置如下：
+| 改进方向 | 作用 | 代码入口 |
+| --- | --- | --- |
+| CBAM 注意力 | 强化通道和空间注意力表达 | `models/modules/cbam.py` |
+| BiFPN Neck | 使用可学习权重进行双向特征融合 | `models/modules/bifpn.py` |
+| Focal Loss | 替换分类 BCE，分析难易样本不均衡影响 | `models/losses/focal_loss.py` |
+| GhostConv | 降低部分 Backbone 卷积计算量 | `models/yolov8n_ghost.yaml` |
+| Decoupled Head | 分离分类与回归分支 | `models/modules/decoupled_head.py` |
 
-| 项目 | 配置 |
-| --- | --- |
-| 模型 | YOLOv8n |
-| 配置文件 | `configs/baseline.yaml` |
-| 训练数据 | `dataset_augmented/data.yaml` |
-| 训练轮数 | 100 |
-| 图像尺寸 | 640 |
-| Batch size | 8 |
-| Workers | 0 |
-| 设备 | CUDA:0 |
-| GPU | NVIDIA GeForce RTX 4060 Laptop GPU |
-| 输出目录 | `reports/ablation/runs/baseline` |
-
-Baseline 正式验证结果如下：
-
-| 指标 | 数值 |
-| --- | ---: |
-| Best epoch | 50 |
-| Precision | 0.96646 |
-| Recall | 0.90696 |
-| mAP50 | 0.94706 |
-| mAP50-95 | 0.74452 |
-| FPS | 144.91 |
-
-Baseline 最后一轮训练日志结果如下：
-
-| 指标 | 数值 |
-| --- | ---: |
-| Epoch | 100 |
-| mAP50 | 0.93528 |
-| mAP50-95 | 0.73228 |
-
-## 5. CBAM 结果
-
-CBAM 阶段新增 `models/modules/cbam.py`，并提供 `models/yolov8n_cbam.yaml` 与 `configs/cbam.yaml`。CBAM 插入在 Backbone 的 C2f 后，保持特征尺寸不变，不影响 Baseline 默认路径。
-
-CBAM 正式验证结果如下：
-
-| 指标 | 数值 |
-| --- | ---: |
-| Best epoch | 87 |
-| Precision | 0.94672 |
-| Recall | 0.86021 |
-| mAP50 | 0.92953 |
-| mAP50-95 | 0.72314 |
-| FPS | 148.42 |
-
-CBAM 在本次增强数据集上训练稳定，但相较 Baseline 精度略低；其价值主要体现在验证了注意力模块可无缝接入 YOLOv8，并为后续组合结构提供可切换实现。
-
-## 6. BiFPN 结果
-
-BiFPN 阶段新增 `models/modules/bifpn.py`，通过 `enable_bifpn` 控制是否将 YOLOv8 原始 PAN-FPN 替换为 BiFPN Neck。BiFPN 使用可学习融合权重，并在前向过程中自动归一化。
-
-Baseline+CBAM+BiFPN 正式验证结果如下：
-
-| 指标 | 数值 |
-| --- | ---: |
-| Best epoch | 98 |
-| Precision | 0.91858 |
-| Recall | 0.86675 |
-| mAP50 | 0.92321 |
-| mAP50-95 | 0.71355 |
-| FPS | 167.94 |
-
-BiFPN 的精度略低于 Baseline 与 CBAM，但推理 FPS 是本次五组中最高，说明加权融合 Neck 在当前实现中有一定速度优势。
-
-## 7. Focal 结果
-
-Focal Loss 阶段新增 `models/losses/focal_loss.py`，只替换 YOLOv8 检测训练中的分类损失项；box loss、DFL、TaskAlignedAssigner 和模型结构保持 Ultralytics 原流程。
-
-默认配置如下：
-
-| 配置项 | 数值 |
-| --- | --- |
-| `enable_focal_loss` | `true` |
-| `focal_gamma` | `2.0` |
-| `focal_alpha` | `0.25` |
-
-CBAM+BiFPN+Focal Loss 正式验证结果如下：
-
-| 指标 | 数值 |
-| --- | ---: |
-| Best epoch | 98 |
-| Precision | 0.50033 |
-| Recall | 0.68291 |
-| mAP50 | 0.61593 |
-| mAP50-95 | 0.47776 |
-| FPS | 95.43 |
-
-Focal Loss 与 CBAM+BiFPN 的组合训练流程稳定，但在当前 `gamma=2.0`、`alpha=0.25` 配置和 100 epoch 训练条件下明显欠收敛，精度低于原始分类损失版本。因此后续推荐继续保留可配置实现，但默认最终权重不采用该组合。
-
-## 8. 消融实验结果
-
-项目已新增 `scripts/ablation.py`，支持自动运行并验证以下实验：
-
-```text
-Baseline
-Baseline+CBAM
-Baseline+CBAM+BiFPN
-Baseline+CBAM+BiFPN+Focal
-FullModel
-```
-
-其中 FullModel 当前定义为：
+FullModel 定义为：
 
 ```text
 GhostConv + CBAM + BiFPN + Decoupled Head + Focal Loss
 ```
 
-本次正式消融实验已在本机 CUDA 环境完成，统一使用 `epochs=100`、`imgsz=640`、`batch=8`、`workers=0`、`device=auto` 与增强数据集 `dataset_augmented/data.yaml`。
+## 5. 公平消融设置
 
-正式运行命令如下：
+最终消融实验使用相同训练集、验证集、图像尺寸、训练轮数和预训练迁移策略：
+
+| 项目 | 配置 |
+| --- | --- |
+| 训练数据 | `dataset_augmented/data.yaml` |
+| 预训练权重 | `yolov8n.pt` |
+| 训练轮数 | 150 |
+| 图像尺寸 | 640 |
+| Batch size | 16 |
+| Workers | 8 |
+| 设备 | CUDA:0 |
+| Focal 类型 | `soft_focal` |
+| Focal gamma | 1.0 |
+| Focal alpha | none |
+
+主消融命令：
 
 ```bash
-.\.venv\Scripts\python.exe scripts\ablation.py --data dataset_augmented\data.yaml --epochs 100 --imgsz 640 --batch 8 --workers 0 --device auto
+python scripts/ablation.py --experiments extended --data dataset_augmented/data.yaml --epochs 150 --imgsz 640 --batch 16 --workers 8 --device 0 --init pretrained --pretrained-weights yolov8n.pt --focal-loss-type soft_focal --focal-gamma 1.0 --focal-alpha none
 ```
 
-自动导出内容包括：
+候选组合补跑命令：
 
-- `reports/ablation/summary.csv`
-- `reports/ablation/summary.xlsx`
-- `reports/ablation/history.csv`
-- `reports/ablation/plots/pr_curve.png`
-- `reports/ablation/plots/loss_curve.png`
-- `reports/ablation/plots/map_curve.png`
-- `reports/ablation/val/`
-
-正式汇总结果如下：
-
-| 实验 | Precision | Recall | mAP50 | mAP50-95 | FPS |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Baseline | 0.96646 | 0.90696 | 0.94706 | 0.74452 | 144.91 |
-| Baseline+CBAM | 0.94672 | 0.86021 | 0.92953 | 0.72314 | 148.42 |
-| Baseline+CBAM+BiFPN | 0.91858 | 0.86675 | 0.92321 | 0.71355 | 167.94 |
-| Baseline+CBAM+BiFPN+Focal | 0.50033 | 0.68291 | 0.61593 | 0.47776 | 95.43 |
-| FullModel | 0.43324 | 0.65441 | 0.52885 | 0.40597 | 60.29 |
-
-消融结论：当前增强数据集与 100 epoch 训练设置下，Baseline 是精度最优模型；CBAM 与 CBAM+BiFPN 均保持 0.92 以上 mAP50，证明改进结构已可训练、可切换、可复现；Focal Loss 与 FullModel 组合存在欠收敛，需要下一阶段进一步调参或采用预训练/更长训练策略。
-
-## 9. 最终模型结构
-
-当前阶段的 FullModel 定义为已实现模块全集：
-
-```text
-YOLOv8n Backbone
-  + GhostConv replacing selected downsampling Conv layers
-  + CBAM attention after backbone C2f blocks
-  + SPPF
-  + BiFPN Neck replacing PAN-FPN
-  + DecoupledDetect head with separated regression/classification towers
-  + Focal Loss for classification branch during training
+```bash
+python scripts/ablation.py --experiments candidate --output reports/ablation_candidate --data dataset_augmented/data.yaml --epochs 150 --imgsz 640 --batch 16 --workers 8 --device 0 --init pretrained --pretrained-weights yolov8n.pt
 ```
 
-对应配置与模型文件：
+## 6. 最终消融结果
 
-| 文件 | 作用 |
-| --- | --- |
-| `configs/full_model.yaml` | FullModel 训练配置 |
-| `models/yolov8n_full.yaml` | GhostConv + CBAM + BiFPN + Decoupled Head 模型结构 |
-| `models/yolov8n_ghost.yaml` | GhostConv 轻量化骨干单独结构 |
-| `models/yolov8n_decoupled.yaml` | Decoupled Head 单独结构 |
-| `models/modules/cbam.py` | CBAM 注意力模块 |
-| `models/modules/bifpn.py` | BiFPN 加权融合模块 |
-| `models/modules/decoupled_head.py` | Decoupled Head 解耦检测头 |
-| `models/losses/focal_loss.py` | Focal Loss 分类损失替换 |
+| 排名 | 模型 | Precision | Recall | mAP50 | mAP50-95 | FPS |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | Baseline+CBAM | 0.99425 | 0.99366 | 0.99227 | 0.80125 | 242.11 |
+| 2 | Baseline+CBAM+BiFPN | 0.99161 | 0.99051 | 0.99162 | 0.80076 | 302.73 |
+| 3 | Baseline+GhostConv | 0.98803 | 0.98988 | 0.98915 | 0.79822 | 306.11 |
+| 4 | Baseline | 0.99332 | 0.99495 | 0.99118 | 0.79532 | 304.50 |
+| 5 | Baseline+DecoupledHead | 0.99246 | 0.99455 | 0.99133 | 0.79500 | 235.72 |
+| 6 | Baseline+CBAM+BiFPN+GhostConv+DecoupledHead | 0.97997 | 0.98383 | 0.99026 | 0.79446 | 280.49 |
+| 7 | Baseline+BiFPN | 0.99197 | 0.99362 | 0.99251 | 0.79234 | 299.28 |
+| 8 | Baseline+CBAM+BiFPN+GhostConv | 0.98294 | 0.98299 | 0.98853 | 0.79027 | 287.42 |
+| 9 | Baseline+CBAM+BiFPN+Focal | 0.98482 | 0.98622 | 0.99027 | 0.78909 | 198.90 |
+| 10 | FullModel | 0.97765 | 0.97535 | 0.99012 | 0.78472 | 226.29 |
+| 11 | Baseline+Focal | 0.98285 | 0.98031 | 0.98906 | 0.78438 | 235.14 |
 
-FullModel 已完成 100 epoch CUDA 正式训练，训练、验证和权重保存均正常。正式验证结果如下：
+## 7. 结果分析
 
-| 指标 | 数值 |
-| --- | ---: |
-| Best epoch | 93 |
-| Precision | 0.43324 |
-| Recall | 0.65441 |
-| mAP50 | 0.52885 |
-| mAP50-95 | 0.40597 |
-| FPS | 60.29 |
+`Baseline+CBAM` 获得最高 mAP50-95，为 0.80125，说明注意力机制能够提升饮片局部纹理和形态特征表达。
 
-由于 FullModel 同时叠加 GhostConv、CBAM、BiFPN、Decoupled Head 与 Focal Loss，结构变化较大；在当前训练轮数和 Focal 参数下并未达到 Baseline 精度。当前推荐的精度交付权重为 `reports/ablation/runs/baseline/weights/best.pt`，推荐的改进结构展示权重为 `reports/ablation/runs/baseline_cbam_bifpn/weights/best.pt`。
+`Baseline+CBAM+BiFPN` 的 mAP50-95 为 0.80076，仅比最高精度模型低 0.00049，但 FPS 从 242.11 提升到 302.73，因此更适合作为网页端和桌面端默认部署模型。
 
-## 10. 下一阶段规划
+`Baseline+GhostConv` 的 mAP50-95 为 0.79822，FPS 为 306.11，是 11 个模型中速度最高的轻量化模型，因此适合作为 Raspberry Pi 5 8GB 无算力棒端默认部署模型。
 
-1. 围绕 Focal Loss 与 FullModel 欠收敛问题继续实验，重点尝试更小 `gamma`、不同 `alpha`、预训练权重迁移、更长训练轮数和学习率策略。
-2. 对 GhostConv 与 Decoupled Head 进行独立消融，分离判断轻量化骨干与解耦检测头对精度和速度的影响。
-3. 以 Baseline best 权重作为当前精度交付模型，以 CBAM+BiFPN best 权重作为结构改进展示模型，继续补充混淆矩阵和类别级 AP 分析。
-4. 使用 `benchmark.py` 在 CPU/GPU 上复测 FPS，并在树莓派或边缘设备上完成实机测速。
-5. 使用 `export.py` 导出 ONNX/OpenVINO/NCNN，并验证部署后检测框、类别标签、置信度和计数输出一致性。
-6. 补充 RTSP 独立接口与 UI 入口，完善视频流场景验收能力。
-7. 整理最终实验报告，重点呈现“未改进 vs 改进后”的真实对比、有效改进与无效组合分析。
+Focal Loss 相关模型和 FullModel 未取得最佳结果。`Baseline+Focal`、`Baseline+CBAM+BiFPN+Focal` 与 `FullModel` 的 mAP50-95 均低于 CBAM/CBAM+BiFPN/GhostConv，说明当前数据集规模和类别分布下，Focal Loss 的难易样本重加权反而削弱了 YOLOv8 原有分类损失与任务分配机制的稳定性。因此 Focal Loss 应作为已完成的负向消融结论保留，而不作为最终部署方案。
+
+## 8. 最终部署选型
+
+| 部署端 | 推荐模型 | 原因 |
+| --- | --- | --- |
+| Web 端 | Baseline+CBAM+BiFPN | 精度接近最高，速度明显更优 |
+| PC 桌面端 | Baseline+CBAM+BiFPN | 适合本地图片、视频、摄像头检测与药材计数 |
+| Raspberry Pi 5 8GB 无算力棒 | Baseline+GhostConv | 速度最高，更适合 CPU/OpenVINO 轻量部署 |
+| 论文最高精度参考 | Baseline+CBAM | mAP50-95 最高 |
+
+完整选型说明见 `docs/FINAL_MODEL_SELECTION.md`。
+
+## 9. 自动导出内容
+
+消融脚本自动导出：
+
+- `summary.csv` / `summary.xlsx`
+- `history.csv`
+- `plots/loss_curve.png`
+- `plots/map_curve.png`
+- `plots/pr_curve.png`
+- 各实验 `runs/*/weights/best.pt`
+- Ultralytics 验证图表、PR 曲线和混淆矩阵
+
+项目部署侧已补充 Web、FastAPI、PySide6 桌面端与 Raspberry Pi 导出脚本，并在检测接口和界面中支持总数统计、英文类别计数和中文药材计数。

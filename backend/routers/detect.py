@@ -178,8 +178,16 @@ async def detect_batch(
 def _to_detect_api_response(result: DetectImageResponse) -> DetectApiResponse:
     """Return the minimal detection API shape."""
 
+    chinese_counts = {
+        CHINESE_CLASS_NAMES.get(class_name, class_name): count
+        for class_name, count in result.class_counts.items()
+    }
     return DetectApiResponse(
         count=result.total_count,
+        class_counts=result.class_counts,
+        chinese_class_counts=chinese_counts,
+        image_width=result.image_width,
+        image_height=result.image_height,
         detections=[
             DetectionApiItem(
                 bbox=item.bbox,

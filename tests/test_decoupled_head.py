@@ -36,6 +36,19 @@ class DecoupledHeadTestCase(unittest.TestCase):
         self.assertEqual(len(detect_layers), 1)
         self.assertEqual(model.model.stride.tolist(), [8.0, 16.0, 32.0])
 
+    def test_cbam_bifpn_ghost_decoupled_yaml_builds(self) -> None:
+        register_ultralytics_modules(enable_cbam=True, enable_bifpn=True, enable_decoupled_head=True)
+
+        model = YOLO(str(ROOT / "models" / "yolov8n_cbam_bifpn_ghost_decoupled.yaml"))
+        cbam_layers = [layer for layer in model.model.model if isinstance(layer, CBAM)]
+        bifpn_layers = [layer for layer in model.model.model if isinstance(layer, BiFPNFusion)]
+        detect_layers = [layer for layer in model.model.model if isinstance(layer, DecoupledDetect)]
+
+        self.assertEqual(len(cbam_layers), 4)
+        self.assertEqual(len(bifpn_layers), 4)
+        self.assertEqual(len(detect_layers), 1)
+        self.assertEqual(model.model.stride.tolist(), [8.0, 16.0, 32.0])
+
     def test_decoupled_head_returns_training_dict(self) -> None:
         head = DecoupledDetect(nc=15, head_channels=64, ch=(32, 64, 128))
         head.train()

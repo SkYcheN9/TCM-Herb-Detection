@@ -18,6 +18,18 @@ class ModelCandidate:
 
 
 PREFERRED_MODEL_PATHS = (
+    (
+        "final_results_full/reports/ablation/runs/baseline_cbam_bifpn/weights/best.pt",
+        "Final deployment: CBAM+BiFPN balanced best",
+    ),
+    (
+        "final_results_full/reports/ablation/runs/baseline_cbam/weights/best.pt",
+        "Final accuracy best: CBAM",
+    ),
+    (
+        "final_results_full/reports/ablation/runs/baseline_ghostconv/weights/best.pt",
+        "Final lightweight best: GhostConv",
+    ),
     ("runs/baseline/weights/best.pt", "Phase 1 Baseline best"),
     ("reports/ablation/runs/baseline/weights/best.pt", "Ablation baseline best"),
     ("runs/detect/runs/baseline/weights/best.pt", "Detection baseline best"),
