@@ -77,7 +77,7 @@ class DetectionView(Page):
             "选择摄像头、图片或视频后点击开始检测，结果会保存到 reports/desktop。",
             self,
         )
-        workspace.addWidget(self.video_panel, 4)
+        workspace.addWidget(self.video_panel, 1)
 
         side_container = QWidget(self)
         side = QVBoxLayout(side_container)
@@ -99,6 +99,7 @@ class DetectionView(Page):
         self.file_path = LineEdit(self.source_card)
         self.file_path.setReadOnly(True)
         self.file_path.setPlaceholderText("选择图片或视频文件")
+        self.file_path.setMinimumWidth(260)
 
         self.device_selector = ComboBox(self.source_card)
         self.device_selector.addItems(["自动选择", "CUDA:0", "CPU"])
@@ -106,6 +107,7 @@ class DetectionView(Page):
         self.model_path = LineEdit(self.source_card)
         self.model_path.setReadOnly(True)
         self.model_path.setText(str(self.model_candidate.path) if self.model_candidate else "未找到可用模型")
+        self.model_path.setMinimumWidth(260)
 
         self.model_source = BodyLabel(
             self.model_candidate.source if self.model_candidate else "请先准备 best.pt 权重文件",
@@ -137,8 +139,8 @@ class DetectionView(Page):
 
         self.conf_slider = Slider(Qt.Horizontal, self.params_card)
         self.conf_slider.setRange(1, 100)
-        self.conf_slider.setValue(55)
-        self.conf_value = QLabel("0.55", self.params_card)
+        self.conf_slider.setValue(85)
+        self.conf_value = QLabel("0.85", self.params_card)
         self.conf_value.setObjectName("valueBadge")
         self.conf_value.setAlignment(Qt.AlignCenter)
         self.conf_value.setMinimumWidth(54)
@@ -187,16 +189,18 @@ class DetectionView(Page):
         self.status_value = QLabel("待机", self.status_card)
         self.status_value.setObjectName("statusPill")
         self.status_value.setAlignment(Qt.AlignCenter)
-        self.status_value.setMinimumWidth(140)
+        self.status_value.setMinimumWidth(120)
 
         self.fps_value = _MetricValue("0.0 FPS", self.status_card)
         self.total_value = _MetricValue("0", self.status_card)
         self.progress_value = BodyLabel("-", self.status_card)
         self.progress_value.setObjectName("mutedLabel")
+        self.progress_value.setWordWrap(True)
+        self.progress_value.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.gpu_value = BodyLabel(query_gpu_status().text, self.status_card)
         self.gpu_value.setObjectName("mutedLabel")
         self.gpu_value.setWordWrap(True)
-        self.gpu_value.setMinimumWidth(220)
+        self.gpu_value.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
         status_grid.addWidget(BodyLabel("状态", self.status_card), 0, 0)
         status_grid.addWidget(self.status_value, 0, 1)
@@ -223,12 +227,13 @@ class DetectionView(Page):
         self.stop_button.setEnabled(False)
         self.open_output_button.setEnabled(False)
 
-        run_buttons = QHBoxLayout()
-        run_buttons.setSpacing(10)
-        run_buttons.addWidget(self.start_button)
-        run_buttons.addWidget(self.stop_button)
-        run_buttons.addWidget(self.open_output_button)
-        run_buttons.addWidget(self.clear_button)
+        run_buttons = QGridLayout()
+        run_buttons.setHorizontalSpacing(10)
+        run_buttons.setVerticalSpacing(10)
+        run_buttons.addWidget(self.start_button, 0, 0)
+        run_buttons.addWidget(self.stop_button, 0, 1)
+        run_buttons.addWidget(self.open_output_button, 1, 0)
+        run_buttons.addWidget(self.clear_button, 1, 1)
 
         side.addWidget(self.source_card)
         side.addWidget(self.params_card)
@@ -242,8 +247,9 @@ class DetectionView(Page):
         side_scroll.setWidget(side_container)
         side_scroll.setWidgetResizable(True)
         side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        side_scroll.setMinimumWidth(390)
-        workspace.addWidget(side_scroll, 1)
+        side_scroll.setMinimumWidth(460)
+        side_scroll.setMaximumWidth(540)
+        workspace.addWidget(side_scroll, 0)
         self.root_layout.addLayout(workspace, 1)
 
         self.mode_selector.currentIndexChanged.connect(self._update_mode_controls)
@@ -411,6 +417,11 @@ class DetectionView(Page):
         self.fps_value.setText(self._format_performance(result.mode, result.fps))
         self.total_value.setText(str(result.total_count))
         self.progress_value.setText(str(result.output_path))
+        if result.review_count:
+            self.progress_value.setText(
+                f"{result.output_path}\n"
+                f"提示：{result.review_count} 个目标置信度低于 0.85，混合或重叠饮片建议人工复核。"
+            )
         self.gpu_value.setText(query_gpu_status().text)
         self._render_class_counts(result.class_counts)
 

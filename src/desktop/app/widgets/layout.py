@@ -141,7 +141,7 @@ class VideoPanel(QFrame):
     def __init__(self, title: str, subtitle: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("previewPanel")
-        self.setMinimumHeight(620)
+        self.setMinimumHeight(560)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._pixmap = QPixmap()
 
@@ -152,7 +152,7 @@ class VideoPanel(QFrame):
 
         self.video_label = QLabel(self)
         self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setMinimumSize(960, 540)
+        self.video_label.setMinimumSize(720, 405)
         self.video_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.video_label.setScaledContents(False)
         self.video_label.hide()

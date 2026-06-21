@@ -20,6 +20,9 @@ from .history_store import HistoryStore
 from .paths import IMAGE_OUTPUT_DIR, VIDEO_OUTPUT_DIR, ensure_desktop_dirs
 
 
+REVIEW_CONFIDENCE = 0.85
+
+
 @dataclass(frozen=True)
 class DetectionSummary:
     """Detection result shown in the UI and persisted to history."""
@@ -33,6 +36,8 @@ class DetectionSummary:
     total_count: int
     class_counts: dict[str, int]
     frame: QImage | None = None
+    review_count: int = 0
+    min_confidence: float | None = None
 
 
 def detect_image(
@@ -67,6 +72,7 @@ def detect_image(
     cv2.imwrite(str(output_path), annotated)
 
     counts = _count_classes(result)
+    review_count, min_confidence = _confidence_review_stats(result)
     summary = DetectionSummary(
         mode="图片检测",
         source_path=image_path,
@@ -77,6 +83,8 @@ def detect_image(
         total_count=sum(counts.values()),
         class_counts=counts,
         frame=_bgr_to_qimage(annotated),
+        review_count=review_count,
+        min_confidence=min_confidence,
     )
 
     if save_record:
@@ -235,3 +243,16 @@ def _save_summary(summary: DetectionSummary, status: str = "完成") -> None:
         class_counts=summary.class_counts,
         status=status,
     )
+
+
+def _confidence_review_stats(result: Any) -> tuple[int, float | None]:
+    boxes = getattr(result, "boxes", None)
+    if boxes is None or boxes.conf is None:
+        return 0, None
+
+    confidences = boxes.conf.detach().cpu().numpy().astype(float).tolist()
+    if not confidences:
+        return 0, None
+
+    review_count = sum(1 for confidence in confidences if confidence < REVIEW_CONFIDENCE)
+    return review_count, min(confidences)
