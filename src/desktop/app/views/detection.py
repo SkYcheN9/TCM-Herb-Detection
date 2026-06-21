@@ -77,7 +77,7 @@ class DetectionView(Page):
             "选择摄像头、图片或视频后点击开始检测，结果会保存到 reports/desktop。",
             self,
         )
-        workspace.addWidget(self.video_panel, 3)
+        workspace.addWidget(self.video_panel, 4)
 
         side_container = QWidget(self)
         side = QVBoxLayout(side_container)
@@ -219,6 +219,7 @@ class DetectionView(Page):
         self.start_button = PrimaryPushButton(FIF.PLAY, "开始检测", self)
         self.stop_button = PushButton(FIF.PAUSE, "停止", self)
         self.open_output_button = PushButton(FIF.FOLDER, "打开结果", self)
+        self.clear_button = PushButton(FIF.SYNC, "清空画面", self)
         self.stop_button.setEnabled(False)
         self.open_output_button.setEnabled(False)
 
@@ -227,6 +228,7 @@ class DetectionView(Page):
         run_buttons.addWidget(self.start_button)
         run_buttons.addWidget(self.stop_button)
         run_buttons.addWidget(self.open_output_button)
+        run_buttons.addWidget(self.clear_button)
 
         side.addWidget(self.source_card)
         side.addWidget(self.params_card)
@@ -240,8 +242,8 @@ class DetectionView(Page):
         side_scroll.setWidget(side_container)
         side_scroll.setWidgetResizable(True)
         side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        side_scroll.setMinimumWidth(430)
-        workspace.addWidget(side_scroll, 2)
+        side_scroll.setMinimumWidth(390)
+        workspace.addWidget(side_scroll, 1)
         self.root_layout.addLayout(workspace, 1)
 
         self.mode_selector.currentIndexChanged.connect(self._update_mode_controls)
@@ -251,6 +253,7 @@ class DetectionView(Page):
         self.start_button.clicked.connect(self.start_detection)
         self.stop_button.clicked.connect(self.stop_detection)
         self.open_output_button.clicked.connect(self.open_last_output)
+        self.clear_button.clicked.connect(self.clear_current_view)
         self._update_threshold_labels()
         self._update_mode_controls()
 
@@ -425,6 +428,12 @@ class DetectionView(Page):
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.last_output_path.parent)))
 
+    def clear_current_view(self) -> None:
+        """Clear the current preview, metrics, and count display."""
+        self.stop_detection()
+        self._reset_visual_state()
+        self.update_status("已清空")
+
     def _on_thread_finished(self) -> None:
         self._set_running(False)
 
@@ -468,6 +477,24 @@ class DetectionView(Page):
             self.progress_value.setText("请将药材样本置于摄像头画面内，非药材画面可能产生误检。")
         else:
             self.progress_value.setText("-")
+        self._reset_visual_state(update_progress=False, update_status=False)
+
+    def _reset_visual_state(self, update_progress: bool = True, update_status: bool = True) -> None:
+        mode = self.mode_selector.currentText()
+        self.video_panel.clear_frame()
+        self.last_output_path = None
+        self.open_output_button.setEnabled(False)
+        self.fps_value.setText("耗时 -" if mode == "图片检测" else "0.0 FPS")
+        self.total_value.setText("0")
+        self.gpu_value.setText(query_gpu_status().text)
+        self._render_class_counts({})
+        if update_status:
+            self.update_status("待机")
+        if update_progress:
+            if mode == "摄像头检测":
+                self.progress_value.setText("请将药材样本置于摄像头画面内，非药材画面可能产生误检。")
+            else:
+                self.progress_value.setText("-")
 
     def _update_threshold_labels(self) -> None:
         self.conf_value.setText(f"{self.conf_slider.value() / 100:.2f}")

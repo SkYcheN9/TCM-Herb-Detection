@@ -73,6 +73,14 @@ type SourceSize = {
   width: number;
   height: number;
 };
+type ModeState = {
+  preview: PreviewSource | null;
+  sourceSize: SourceSize | null;
+  detections: DetectionApiItem[];
+  classCounts: Record<string, number>;
+  latencyMs: number | null;
+  message: string;
+};
 
 const modeOptions = [
   { value: "camera" as const, label: "摄像头", icon: Video },
@@ -90,6 +98,13 @@ const classColorPalette = [
   "rgb(132 204 22)",
   "rgb(99 102 241)",
   "rgb(217 119 6)",
+  "rgb(168 85 247)",
+  "rgb(236 72 153)",
+  "rgb(234 179 8)",
+  "rgb(6 182 212)",
+  "rgb(59 130 246)",
+  "rgb(220 38 38)",
+  "rgb(100 116 139)",
 ];
 
 function formatPercent(value: number) {
@@ -98,6 +113,37 @@ function formatPercent(value: number) {
 
 function getClassLabel(name: string, classes: ClassInfo[]) {
   return classes.find((item) => item.name === name)?.chinese_name ?? name;
+}
+
+function createModeState(message: string): ModeState {
+  return {
+    preview: null,
+    sourceSize: null,
+    detections: [],
+    classCounts: {},
+    latencyMs: null,
+    message,
+  };
+}
+
+function revokePreviewSource(preview: PreviewSource | null) {
+  if (preview?.file) {
+    URL.revokeObjectURL(preview.url);
+  }
+}
+
+function getClassColor(name: string, classes: ClassInfo[]) {
+  const classIndex = classes.findIndex((item) => item.name === name);
+
+  if (classIndex >= 0) {
+    return classColorPalette[classIndex % classColorPalette.length];
+  }
+
+  const seed = Array.from(name).reduce(
+    (total, char, index) => total + char.charCodeAt(0) * (index + 1),
+    0,
+  );
+  return classColorPalette[seed % classColorPalette.length];
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -119,21 +165,19 @@ function confidenceTone(value: number) {
 export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
   const classList = classes.length > 0 ? classes : fallbackClasses;
   const [mode, setMode] = useState<Mode>("camera");
-  const [preview, setPreview] = useState<PreviewSource | null>(null);
+  const [modeStates, setModeStates] = useState<Record<Mode, ModeState>>({
+    camera: createModeState("准备摄像头输入"),
+    upload: createModeState("等待上传图片"),
+  });
   const [renderBox, setRenderBox] = useState<RenderBox | null>(null);
-  const [sourceSize, setSourceSize] = useState<SourceSize | null>(null);
-  const [detections, setDetections] = useState<DetectionApiItem[]>([]);
-  const [classCounts, setClassCounts] = useState<Record<string, number>>({});
   const [isDetecting, setIsDetecting] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [message, setMessage] = useState("等待输入源");
   const [confidence, setConfidence] = useState(0.55);
   const [iou, setIou] = useState(0.5);
   const [imageSize, setImageSize] = useState(960);
   const [device, setDevice] = useState<Device>("auto");
   const [autoLoop, setAutoLoop] = useState(false);
-  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -143,12 +187,17 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
   const streamRef = useRef<MediaStream | null>(null);
   const loopTimerRef = useRef<number | null>(null);
   const isDetectingRef = useRef(false);
+  const modeStatesRef = useRef(modeStates);
 
   const pointerX = useMotionValue(0);
   const pointerY = useMotionValue(0);
   const smoothX = useSpring(pointerX, { stiffness: 140, damping: 26 });
   const smoothY = useSpring(pointerY, { stiffness: 140, damping: 26 });
   const spotlight = useMotionTemplate`radial-gradient(420px circle at ${smoothX}px ${smoothY}px, rgba(20, 184, 166, 0.16), transparent 48%)`;
+
+  const activeState = modeStates[mode];
+  const { classCounts, detections, latencyMs, message, preview, sourceSize } =
+    activeState;
 
   const groupedDetections = useMemo(() => {
     if (Object.keys(classCounts).length > 0) {
@@ -163,6 +212,59 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
   const topConfidence = useMemo(() => {
     return detections.reduce((max, item) => Math.max(max, item.confidence), 0);
   }, [detections]);
+
+  const updateModeState = useCallback(
+    (targetMode: Mode, patch: Partial<ModeState>) => {
+      setModeStates((current) => ({
+        ...current,
+        [targetMode]: {
+          ...current[targetMode],
+          ...patch,
+        },
+      }));
+    },
+    [],
+  );
+
+  const replaceModePreview = useCallback(
+    (targetMode: Mode, nextPreview: PreviewSource | null) => {
+      setModeStates((current) => {
+        const previousPreview = current[targetMode].preview;
+
+        if (previousPreview?.url !== nextPreview?.url) {
+          revokePreviewSource(previousPreview);
+        }
+
+        return {
+          ...current,
+          [targetMode]: {
+            ...current[targetMode],
+            preview: nextPreview,
+          },
+        };
+      });
+    },
+    [],
+  );
+
+  const clearModeState = useCallback(
+    (targetMode: Mode, message: string) => {
+      setModeStates((current) => {
+        revokePreviewSource(current[targetMode].preview);
+
+        return {
+          ...current,
+          [targetMode]: createModeState(message),
+        };
+      });
+      setRenderBox(null);
+
+      if (targetMode === "upload" && fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+    [],
+  );
 
   const stopCamera = useCallback(() => {
     if (loopTimerRef.current) {
@@ -183,16 +285,38 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
   }, [stopCamera]);
 
   useEffect(() => {
+    modeStatesRef.current = modeStates;
+  }, [modeStates]);
+
+  useEffect(() => {
     return () => {
-      if (preview?.file) {
-        URL.revokeObjectURL(preview.url);
-      }
+      Object.values(modeStatesRef.current).forEach((state) => {
+        revokePreviewSource(state.preview);
+      });
     };
-  }, [preview]);
+  }, []);
 
   useEffect(() => {
     isDetectingRef.current = isDetecting;
   }, [isDetecting]);
+
+  useEffect(() => {
+    if (
+      mode !== "camera" ||
+      preview ||
+      !isCameraActive ||
+      !streamRef.current ||
+      !videoRef.current
+    ) {
+      return;
+    }
+
+    if (videoRef.current.srcObject !== streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+
+    void videoRef.current.play().catch(() => undefined);
+  }, [isCameraActive, mode, preview]);
 
   const updateRenderBox = useCallback(() => {
     const stage = stageRef.current;
@@ -233,7 +357,7 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
-    setMessage("正在打开摄像头");
+    updateModeState("camera", { message: "正在打开摄像头" });
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -254,17 +378,20 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
 
       setMode("camera");
       setIsCameraActive(true);
-      setDetections([]);
-      setClassCounts({});
       setRenderBox(null);
-      setSourceSize(null);
-      setPreview(null);
-      setMessage("摄像头已就绪");
+      replaceModePreview("camera", null);
+      updateModeState("camera", {
+        detections: [],
+        classCounts: {},
+        sourceSize: null,
+        latencyMs: null,
+        message: "摄像头已就绪",
+      });
     } catch {
       setCameraError("无法访问摄像头，请检查浏览器权限或设备占用。");
-      setMessage("摄像头不可用");
+      updateModeState("camera", { message: "摄像头不可用" });
     }
-  }, []);
+  }, [replaceModePreview, updateModeState]);
 
   const captureFrameAsFile = useCallback(async () => {
     const video = videoRef.current;
@@ -315,46 +442,57 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
   const setUploadedFile = useCallback(
     async (file: File) => {
       if (!file.type.startsWith("image/")) {
-        setMessage("请选择图片文件");
+        updateModeState("upload", { message: "请选择图片文件" });
         return;
-      }
-
-      if (preview?.file) {
-        URL.revokeObjectURL(preview.url);
       }
 
       const url = URL.createObjectURL(file);
       const size = await readImageSize(url);
-      setMode("upload");
-      setPreview({
+      const nextPreview = {
         url,
         name: file.name,
         width: size.width,
         height: size.height,
         file,
-      });
-      setDetections([]);
-      setClassCounts({});
+      };
+
+      setMode("upload");
       setRenderBox(null);
-      setSourceSize(null);
-      setLatencyMs(null);
-      setMessage("图片已载入，可开始检测");
+      setModeStates((current) => {
+        revokePreviewSource(current.upload.preview);
+
+        return {
+          ...current,
+          upload: {
+            preview: nextPreview,
+            sourceSize: null,
+            detections: [],
+            classCounts: {},
+            latencyMs: null,
+            message: "图片已载入，可开始检测",
+          },
+        };
+      });
     },
-    [preview, readImageSize],
+    [readImageSize, updateModeState],
   );
 
   const detectFile = useCallback(
-    async (file: File, nextPreview?: PreviewSource) => {
+    async (targetMode: Mode, file: File, nextPreview?: PreviewSource) => {
       setIsDetecting(true);
-      setSourceSize(null);
-      setMessage("正在推理");
+      if (nextPreview) {
+        replaceModePreview(targetMode, nextPreview);
+      }
+      updateModeState(targetMode, {
+        sourceSize: null,
+        detections: [],
+        classCounts: {},
+        latencyMs: null,
+        message: "正在推理",
+      });
       const startedAt = performance.now();
 
       try {
-        if (nextPreview) {
-          setPreview(nextPreview);
-        }
-
         const body = new FormData();
         body.append("file", file);
         body.append("confidence", String(confidence));
@@ -383,39 +521,48 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
           );
         }
 
-        setDetections(data.detections ?? []);
-        setClassCounts(data.class_counts ?? {});
-        setSourceSize(
-          data.image_width && data.image_height
-            ? { width: data.image_width, height: data.image_height }
-            : null,
-        );
-        setLatencyMs(performance.now() - startedAt);
-        setMessage(
-          data.count > 0 ? `识别到 ${data.count} 个目标` : "未识别到目标",
-        );
+        updateModeState(targetMode, {
+          detections: data.detections ?? [],
+          classCounts: data.class_counts ?? {},
+          sourceSize:
+            data.image_width && data.image_height
+              ? { width: data.image_width, height: data.image_height }
+              : null,
+          latencyMs: performance.now() - startedAt,
+          message:
+            data.count > 0 ? `识别到 ${data.count} 个目标` : "未识别到目标",
+        });
 
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "检测失败");
+        updateModeState(targetMode, {
+          message: error instanceof Error ? error.message : "检测失败",
+        });
       } finally {
         setIsDetecting(false);
       }
     },
-    [confidence, device, imageSize, iou],
+    [
+      confidence,
+      device,
+      imageSize,
+      iou,
+      replaceModePreview,
+      updateModeState,
+    ],
   );
 
   const runUploadDetection = useCallback(() => {
     if (!preview?.file) {
-      setMessage("请先上传图片");
+      updateModeState("upload", { message: "请先上传图片" });
       return;
     }
 
-    void detectFile(preview.file);
-  }, [detectFile, preview]);
+    void detectFile("upload", preview.file);
+  }, [detectFile, preview, updateModeState]);
 
   const runCameraDetection = useCallback(async () => {
     if (!isCameraActive) {
-      setMessage("请先打开摄像头");
+      updateModeState("camera", { message: "请先打开摄像头" });
       return;
     }
 
@@ -424,7 +571,7 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
       const url = URL.createObjectURL(file);
       const size = await readImageSize(url);
 
-      await detectFile(file, {
+      await detectFile("camera", file, {
         url,
         name: "摄像头抓拍",
         width: size.width,
@@ -432,13 +579,16 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
         file,
       });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "摄像头抓拍失败");
+      updateModeState("camera", {
+        message: error instanceof Error ? error.message : "摄像头抓拍失败",
+      });
     }
   }, [
     captureFrameAsFile,
     detectFile,
     isCameraActive,
     readImageSize,
+    updateModeState,
   ]);
 
   useEffect(() => {
@@ -484,6 +634,8 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
       if (file) {
         void setUploadedFile(file);
       }
+
+      event.currentTarget.value = "";
     },
     [setUploadedFile],
   );
@@ -495,19 +647,21 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
       }
 
       setMode(nextMode);
-      setMessage(nextMode === "camera" ? "准备摄像头输入" : "等待上传图片");
+      setRenderBox(null);
     },
     [stopCamera],
   );
 
   const clearResult = useCallback(() => {
-    setDetections([]);
-    setClassCounts({});
-    setRenderBox(null);
-    setSourceSize(null);
-    setLatencyMs(null);
-    setMessage("结果已清空");
-  }, []);
+    if (mode === "camera") {
+      stopCamera();
+      setCameraError(null);
+      clearModeState("camera", "准备摄像头输入");
+      return;
+    }
+
+    clearModeState("upload", "等待上传图片");
+  }, [clearModeState, mode, stopCamera]);
 
   const previewWidth = sourceSize?.width ?? preview?.width ?? 1568;
   const previewHeight = sourceSize?.height ?? preview?.height ?? 1003;
@@ -589,7 +743,34 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
 
             <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_260px]">
               <div
-                className="relative min-h-[420px] bg-stone-100"
+                className={cn(
+                  "relative min-h-[420px] bg-stone-100",
+                  mode === "upload" && dragging && "ring-2 ring-primary",
+                )}
+                onDragEnter={(event) => {
+                  if (mode !== "upload") {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={(event) => {
+                  if (mode !== "upload") {
+                    return;
+                  }
+
+                  const nextTarget = event.relatedTarget as Node | null;
+                  if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+                    setDragging(false);
+                  }
+                }}
+                onDragOver={(event) => {
+                  if (mode === "upload") {
+                    event.preventDefault();
+                  }
+                }}
+                onDrop={mode === "upload" ? handleDrop : undefined}
                 ref={stageRef}
               >
                 <AnimatePresence mode="wait">
@@ -669,13 +850,6 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
                             "absolute inset-4 flex items-center justify-center rounded-lg border border-dashed bg-background/72 p-4 transition",
                             dragging && "border-primary bg-accent/70",
                           )}
-                          onDragEnter={(event) => {
-                            event.preventDefault();
-                            setDragging(true);
-                          }}
-                          onDragLeave={() => setDragging(false)}
-                          onDragOver={(event) => event.preventDefault()}
-                          onDrop={handleDrop}
                         >
                           <EmptySource
                             icon={UploadCloud}
@@ -699,6 +873,21 @@ export function DetectionWorkbench({ classes }: { classes: ClassInfo[] }) {
                     width={previewWidth}
                   />
                 ) : null}
+
+                <AnimatePresence>
+                  {mode === "upload" && dragging ? (
+                    <motion.div
+                      animate={{ opacity: 1 }}
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/10 backdrop-blur-[1px]"
+                      exit={{ opacity: 0 }}
+                      initial={{ opacity: 0 }}
+                    >
+                      <div className="rounded-lg border bg-card/92 px-4 py-3 text-sm font-medium shadow-panel">
+                        松开后替换当前图片
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
 
                 <AnimatePresence>
                   {isDetecting ? (
@@ -1051,7 +1240,7 @@ function DetectionOverlay({
     <div className="pointer-events-none absolute inset-0">
       <AnimatePresence>
         {detections.map((item, index) => {
-          const color = classColorPalette[index % classColorPalette.length];
+          const color = getClassColor(item.class, classes);
           const left = clamp((item.bbox.x1 / width) * 100, 0, 100);
           const top = clamp((item.bbox.y1 / height) * 100, 0, 100);
           const boxWidth = clamp(

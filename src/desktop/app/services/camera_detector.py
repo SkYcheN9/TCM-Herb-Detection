@@ -21,6 +21,23 @@ from .paths import ensure_desktop_dirs
 
 SMOOTHING_WINDOW = 7
 STABLE_MIN_FRAMES = 3
+CLASS_COLORS = {
+    "zexie": (45, 212, 191),
+    "niuxi": (34, 197, 94),
+    "gaoliangjiang": (14, 165, 233),
+    "mudanpi": (168, 85, 247),
+    "yuzhu": (245, 158, 11),
+    "baizhi": (236, 72, 153),
+    "baishao": (99, 102, 241),
+    "dazao": (239, 68, 68),
+    "danshen": (220, 38, 38),
+    "gancao": (132, 204, 22),
+    "baixianpi": (6, 182, 212),
+    "baihe": (234, 179, 8),
+    "sangzhi": (217, 119, 6),
+    "jiegeng": (59, 130, 246),
+    "banlangen": (100, 116, 139),
+}
 
 
 class CameraDetectorThread(QThread):
@@ -225,7 +242,7 @@ def _plot_stable_result(result: Any, stable_counts: dict[str, int]) -> np.ndarra
 
         x1, y1, x2, y2 = [int(round(value)) for value in bbox]
         label = f"{name} {confidence:.2f}"
-        color = (20, 184, 166)
+        color = _class_color(name)
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         label_size, baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.58, 2)
         label_y = max(y1, label_size[1] + baseline + 4)
@@ -248,6 +265,21 @@ def _plot_stable_result(result: Any, stable_counts: dict[str, int]) -> np.ndarra
         )
 
     return frame
+
+
+def _class_color(name: str) -> tuple[int, int, int]:
+    """Return a stable BGR color for one class name."""
+
+    if name in CLASS_COLORS:
+        rgb = CLASS_COLORS[name]
+    else:
+        seed = sum((index + 1) * ord(char) for index, char in enumerate(name))
+        rgb = (
+            80 + seed % 150,
+            80 + (seed // 7) % 150,
+            80 + (seed // 17) % 150,
+        )
+    return rgb[2], rgb[1], rgb[0]
 
 
 def _bgr_to_qimage(frame: np.ndarray) -> QImage:

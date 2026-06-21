@@ -141,17 +141,19 @@ class VideoPanel(QFrame):
     def __init__(self, title: str, subtitle: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("previewPanel")
-        self.setMinimumHeight(500)
+        self.setMinimumHeight(620)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._pixmap = QPixmap()
 
         self.layout = QVBoxLayout(self)
         self.layout.setAlignment(Qt.AlignCenter)
-        self.layout.setContentsMargins(16, 16, 16, 16)
-        self.layout.setSpacing(10)
+        self.layout.setContentsMargins(8, 8, 8, 8)
+        self.layout.setSpacing(0)
 
         self.video_label = QLabel(self)
         self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setMinimumSize(640, 360)
+        self.video_label.setMinimumSize(960, 540)
+        self.video_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.video_label.setScaledContents(False)
         self.video_label.hide()
 
