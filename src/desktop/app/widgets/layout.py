@@ -152,8 +152,8 @@ class VideoPanel(QFrame):
 
         self.video_label = QLabel(self)
         self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setMinimumSize(720, 405)
-        self.video_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.video_label.setMinimumSize(0, 0)
+        self.video_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self.video_label.setScaledContents(False)
         self.video_label.hide()
 

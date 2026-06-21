@@ -36,6 +36,7 @@ env/
 /reports/benchmark/
 /reports/evaluation/
 /reports/smoke/
+/reports/stress_test_samples/
 /reports/ablation_probe/
 /reports/ablation/runs/
 /reports/ablation/val/

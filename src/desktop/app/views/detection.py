@@ -5,8 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QCloseEvent, QDesktopServices, QPixmap
-from PySide6.QtWidgets import QFileDialog, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtGui import QBrush, QCloseEvent, QColor, QDesktopServices, QPixmap
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QSplitter,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import (
     BodyLabel,
     CheckBox,
@@ -21,12 +31,13 @@ from qfluentwidgets import (
     SmoothScrollArea,
     SpinBox,
     SwitchButton,
+    TableWidget,
 )
 
 from ..services.camera_detector import CameraDetectorThread
 from ..services.camera_devices import discover_camera_devices
 from ..services.gpu_status import query_gpu_status
-from ..services.media_detector import DetectionSummary, VideoDetectorThread, detect_image
+from ..services.media_detector import DetectionCandidate, DetectionSummary, VideoDetectorThread, detect_image
 from ..services.model_locator import find_best_model
 from ..widgets.layout import Page, SectionCard, VideoPanel
 
@@ -69,15 +80,16 @@ class DetectionView(Page):
         self.selected_video_path: Path | None = None
         self.last_output_path: Path | None = None
 
-        workspace = QHBoxLayout()
-        workspace.setSpacing(16)
+        self.workspace_splitter = QSplitter(Qt.Horizontal, self)
+        self.workspace_splitter.setChildrenCollapsible(False)
+        self.workspace_splitter.setHandleWidth(8)
 
         self.video_panel = VideoPanel(
             "等待输入源",
             "选择摄像头、图片或视频后点击开始检测，结果会保存到 reports/desktop。",
             self,
         )
-        workspace.addWidget(self.video_panel, 1)
+        self.workspace_splitter.addWidget(self.video_panel)
 
         side_container = QWidget(self)
         side = QVBoxLayout(side_container)
@@ -220,6 +232,22 @@ class DetectionView(Page):
         self.classes_card.layout.addLayout(self.class_counts)
         self._render_class_counts({})
 
+        self.details_card = SectionCard("检测明细", self)
+        self.details_table = TableWidget(self.details_card)
+        self.details_table.setColumnCount(3)
+        self.details_table.setHorizontalHeaderLabels(["类别", "置信度", "定位框"])
+        self.details_table.verticalHeader().hide()
+        self.details_table.setMinimumHeight(180)
+        self.details_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.details_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.details_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.details_card.layout.addWidget(self.details_table)
+        details_note = BodyLabel("低置信候选仅用于复核混合/重叠饮片，不参与正式计数。", self.details_card)
+        details_note.setObjectName("mutedLabel")
+        details_note.setWordWrap(True)
+        self.details_card.layout.addWidget(details_note)
+        self._render_detection_details([])
+
         self.start_button = PrimaryPushButton(FIF.PLAY, "开始检测", self)
         self.stop_button = PushButton(FIF.PAUSE, "停止", self)
         self.open_output_button = PushButton(FIF.FOLDER, "打开结果", self)
@@ -240,6 +268,7 @@ class DetectionView(Page):
         side.addWidget(self.options_card)
         side.addWidget(self.status_card)
         side.addWidget(self.classes_card)
+        side.addWidget(self.details_card)
         side.addLayout(run_buttons)
         side.addStretch(1)
 
@@ -248,9 +277,12 @@ class DetectionView(Page):
         side_scroll.setWidgetResizable(True)
         side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         side_scroll.setMinimumWidth(460)
-        side_scroll.setMaximumWidth(540)
-        workspace.addWidget(side_scroll, 0)
-        self.root_layout.addLayout(workspace, 1)
+        side_scroll.setMaximumWidth(660)
+        self.workspace_splitter.addWidget(side_scroll)
+        self.workspace_splitter.setStretchFactor(0, 1)
+        self.workspace_splitter.setStretchFactor(1, 0)
+        self.workspace_splitter.setSizes([1220, 520])
+        self.root_layout.addWidget(self.workspace_splitter, 1)
 
         self.mode_selector.currentIndexChanged.connect(self._update_mode_controls)
         self.conf_slider.valueChanged.connect(self._update_threshold_labels)
@@ -404,6 +436,7 @@ class DetectionView(Page):
         if data.get("total_frames"):
             self.progress_value.setText(f"{data.get('frame', 0)} / {data.get('total_frames', 0)} 帧")
         self._render_class_counts(data.get("counts", {}))
+        self._render_detection_details([])
 
     def apply_summary(self, summary: object) -> None:
         """Show final image or video summary."""
@@ -424,6 +457,7 @@ class DetectionView(Page):
             )
         self.gpu_value.setText(query_gpu_status().text)
         self._render_class_counts(result.class_counts)
+        self._render_detection_details(result.candidates or [])
 
     def update_status(self, text: str) -> None:
         self.status_value.setText(text)
@@ -464,6 +498,25 @@ class DetectionView(Page):
         for name, count in counts.items():
             self.class_counts.addWidget(_ClassCountRow(name, count, self.classes_card))
 
+    def _render_detection_details(self, candidates: list[DetectionCandidate]) -> None:
+        self.details_table.setRowCount(len(candidates))
+        current_conf = self.conf_slider.value() / 100
+        muted_brush = QBrush(QColor("#8A94A3"))
+        for row_index, candidate in enumerate(candidates):
+            x1, y1, x2, y2 = candidate.bbox
+            values = [
+                CHINESE_CLASS_NAMES.get(candidate.class_name, candidate.class_name),
+                f"{candidate.confidence * 100:.1f}%",
+                f"{x1}, {y1}, {x2}, {y2}",
+            ]
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                if col_index == 1:
+                    item.setTextAlignment(Qt.AlignCenter)
+                if candidate.confidence < current_conf:
+                    item.setForeground(muted_brush)
+                self.details_table.setItem(row_index, col_index, item)
+
     def _set_running(self, running: bool, can_stop: bool = True) -> None:
         self.start_button.setEnabled(not running)
         self.stop_button.setEnabled(running and can_stop)
@@ -499,6 +552,7 @@ class DetectionView(Page):
         self.total_value.setText("0")
         self.gpu_value.setText(query_gpu_status().text)
         self._render_class_counts({})
+        self._render_detection_details([])
         if update_status:
             self.update_status("待机")
         if update_progress:

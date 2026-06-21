@@ -21,6 +21,17 @@ from .paths import IMAGE_OUTPUT_DIR, VIDEO_OUTPUT_DIR, ensure_desktop_dirs
 
 
 REVIEW_CONFIDENCE = 0.85
+DETAIL_CONFIDENCE = 0.18
+DETAIL_MAX_CANDIDATES = 25
+
+
+@dataclass(frozen=True)
+class DetectionCandidate:
+    """One detection candidate for the review table."""
+
+    class_name: str
+    confidence: float
+    bbox: tuple[int, int, int, int]
 
 
 @dataclass(frozen=True)
@@ -38,6 +49,7 @@ class DetectionSummary:
     frame: QImage | None = None
     review_count: int = 0
     min_confidence: float | None = None
+    candidates: list[DetectionCandidate] | None = None
 
 
 def detect_image(
@@ -64,6 +76,14 @@ def detect_image(
         device=device,
         verbose=False,
     )[0]
+    detail_result = model.predict(
+        source=str(image_path),
+        conf=min(conf, DETAIL_CONFIDENCE),
+        iou=iou,
+        imgsz=imgsz,
+        device=device,
+        verbose=False,
+    )[0]
     elapsed = max(time.perf_counter() - started, 1e-6)
     latency_ms = elapsed * 1000
 
@@ -72,7 +92,8 @@ def detect_image(
     cv2.imwrite(str(output_path), annotated)
 
     counts = _count_classes(result)
-    review_count, min_confidence = _confidence_review_stats(result)
+    candidates = _detection_candidates(detail_result)
+    review_count, min_confidence = _confidence_review_stats(detail_result)
     summary = DetectionSummary(
         mode="图片检测",
         source_path=image_path,
@@ -85,6 +106,7 @@ def detect_image(
         frame=_bgr_to_qimage(annotated),
         review_count=review_count,
         min_confidence=min_confidence,
+        candidates=candidates,
     )
 
     if save_record:
@@ -256,3 +278,26 @@ def _confidence_review_stats(result: Any) -> tuple[int, float | None]:
 
     review_count = sum(1 for confidence in confidences if confidence < REVIEW_CONFIDENCE)
     return review_count, min(confidences)
+
+
+def _detection_candidates(result: Any) -> list[DetectionCandidate]:
+    boxes = getattr(result, "boxes", None)
+    if boxes is None or boxes.cls is None:
+        return []
+
+    names = getattr(result, "names", {}) or {}
+    xyxy = boxes.xyxy.detach().cpu().numpy().tolist()
+    class_ids = boxes.cls.detach().cpu().numpy().astype(int).tolist()
+    confidences = boxes.conf.detach().cpu().numpy().tolist()
+
+    candidates: list[DetectionCandidate] = []
+    for bbox, class_id, confidence in zip(xyxy, class_ids, confidences, strict=False):
+        name = names.get(class_id, str(class_id)) if isinstance(names, dict) else str(class_id)
+        candidates.append(
+            DetectionCandidate(
+                class_name=name,
+                confidence=float(confidence),
+                bbox=tuple(int(round(value)) for value in bbox),
+            )
+        )
+    return sorted(candidates, key=lambda candidate: candidate.confidence, reverse=True)[:DETAIL_MAX_CANDIDATES]

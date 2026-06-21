@@ -58,6 +58,15 @@ SmoothScrollArea {
     border: none;
 }
 
+QSplitter::handle {
+    background: #DCE5EA;
+    border-radius: 3px;
+}
+
+QSplitter::handle:hover {
+    background: #13A8B8;
+}
+
 QFrame#timelineRail {
     background: rgba(17, 24, 39, 0.10);
     border-radius: 2px;

@@ -75,6 +75,14 @@ python -m venv .venv
 .\.venv\Scripts\python.exe scripts/augment_dataset.py --dataset-root dataset --output dataset_augmented --copies 2 --mosaic-count 250 --mixup-count 250
 ```
 
+生成现场验收压力测试样本：
+
+```bash
+.\.venv\Scripts\python.exe scripts/generate_stress_samples.py --count 60 --output reports/stress_test_samples
+```
+
+该脚本会从 `data/images` 和 `data/labels` 中裁出已标注饮片，合成遮挡、污损、堆叠、复杂背景、甘草与桔梗混合贴近等测试图，并输出 `reports/stress_test_samples/preview_contact_sheet.jpg` 供快速查看。生成结果用于验收前压力测试；如果后续要并入训练集，需要先人工复核标签。
+
 训练 Baseline：
 
 ```bash
