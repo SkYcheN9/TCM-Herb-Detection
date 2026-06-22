@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections import Counter, deque
-import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -14,6 +13,7 @@ from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QImage
 from ultralytics import YOLO
 
+from .camera_devices import open_camera_capture
 from .gpu_status import query_gpu_status, resolve_inference_device
 from .history_store import HistoryStore
 from .paths import ensure_desktop_dirs
@@ -52,6 +52,7 @@ class CameraDetectorThread(QThread):
         self,
         model_path: Path,
         camera_index: int,
+        camera_backend: int | None,
         conf: float,
         iou: float,
         imgsz: int,
@@ -62,6 +63,7 @@ class CameraDetectorThread(QThread):
         super().__init__(parent)
         self.model_path = model_path
         self.camera_index = camera_index
+        self.camera_backend = camera_backend
         self.conf = conf
         self.iou = iou
         self.imgsz = imgsz
@@ -84,17 +86,16 @@ class CameraDetectorThread(QThread):
             device = resolve_inference_device(self.device_mode)
 
             self.status_changed.emit("正在打开摄像头")
-            backend = cv2.CAP_DSHOW if sys.platform.startswith("win") else cv2.CAP_ANY
-            capture = cv2.VideoCapture(self.camera_index, backend)
-            capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-            capture.set(cv2.CAP_PROP_FPS, 30)
-
-            if not capture.isOpened():
-                self.error_occurred.emit(f"无法打开摄像头 {self.camera_index}")
+            opened = open_camera_capture(self.camera_index, self.camera_backend)
+            if opened is None:
+                self.error_occurred.emit(
+                    f"无法打开摄像头 {self.camera_index}。请确认 Camo/虚拟摄像头未被其他软件独占，"
+                    "或点击刷新摄像头后重试。"
+                )
                 return
+            capture, _, backend_label = opened
 
-            self.status_changed.emit("实时检测中")
+            self.status_changed.emit(f"实时检测中 ({backend_label})")
             last_frame_at = time.perf_counter()
             smooth_fps = 0.0
             frame_index = 0
@@ -142,6 +143,7 @@ class CameraDetectorThread(QThread):
                         "device": "CUDA:0" if device == 0 else "CPU",
                         "model": self.model_path.name,
                         "camera": self.camera_index,
+                        "backend": backend_label,
                         "stabilized": True,
                     }
                 )

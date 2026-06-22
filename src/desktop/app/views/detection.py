@@ -108,6 +108,7 @@ class DetectionView(Page):
 
         self.camera_selector = ComboBox(self.source_card)
         self.camera_selector.addItems([device.label for device in self.camera_devices])
+        self.refresh_camera_button = PushButton(FIF.SYNC, "刷新", self.source_card)
 
         self.file_path = LineEdit(self.source_card)
         self.file_path.setReadOnly(True)
@@ -134,7 +135,13 @@ class DetectionView(Page):
         source_grid.addWidget(BodyLabel("模式", self.source_card), 0, 0)
         source_grid.addWidget(self.mode_selector, 0, 1)
         source_grid.addWidget(BodyLabel("摄像头", self.source_card), 1, 0)
-        source_grid.addWidget(self.camera_selector, 1, 1)
+        camera_row = QHBoxLayout()
+        camera_row.setContentsMargins(0, 0, 0, 0)
+        camera_row.setSpacing(8)
+        camera_row.addWidget(self.camera_selector, 1)
+        camera_row.addWidget(self.refresh_camera_button)
+
+        source_grid.addLayout(camera_row, 1, 1)
         source_grid.addWidget(BodyLabel("文件", self.source_card), 2, 0)
         source_grid.addWidget(self.file_path, 2, 1)
         source_grid.addWidget(BodyLabel("运行设备", self.source_card), 3, 0)
@@ -289,6 +296,7 @@ class DetectionView(Page):
         self.conf_slider.valueChanged.connect(self._update_threshold_labels)
         self.iou_slider.valueChanged.connect(self._update_threshold_labels)
         self.pick_file_button.clicked.connect(self.pick_source_file)
+        self.refresh_camera_button.clicked.connect(self.refresh_camera_devices)
         self.start_button.clicked.connect(self.start_detection)
         self.stop_button.clicked.connect(self.stop_detection)
         self.open_output_button.clicked.connect(self.open_last_output)
@@ -312,11 +320,15 @@ class DetectionView(Page):
             return
         if not self._ensure_model():
             return
+        if not self.camera_devices:
+            self._show_error("未发现摄像头", "请先打开 Camo/摄像头软件，然后点击“刷新”重新检测摄像头。")
+            return
 
-        camera_index = self.camera_devices[self.camera_selector.currentIndex()].index
+        camera_device = self.camera_devices[self.camera_selector.currentIndex()]
         self.camera_thread = CameraDetectorThread(
             model_path=self.model_candidate.path,
-            camera_index=camera_index,
+            camera_index=camera_device.index,
+            camera_backend=camera_device.backend,
             conf=self.conf_slider.value() / 100,
             iou=self.iou_slider.value() / 100,
             imgsz=self.size_spin.value(),
@@ -333,6 +345,27 @@ class DetectionView(Page):
         self._set_running(True)
         self.update_status("启动中")
         self.camera_thread.start()
+
+    def refresh_camera_devices(self) -> None:
+        """Probe camera devices again after USB or virtual camera changes."""
+        if self.camera_thread and self.camera_thread.isRunning():
+            self._show_error("无法刷新", "请先停止当前摄像头检测。")
+            return
+
+        current_index = self.camera_devices[self.camera_selector.currentIndex()].index if self.camera_devices else 0
+        self.camera_devices = discover_camera_devices()
+        self.camera_selector.clear()
+        if not self.camera_devices:
+            self.camera_devices = []
+            self._show_error("未发现摄像头", "没有检测到可打开的摄像头，请确认权限、Camo 虚拟摄像头和占用情况。")
+            return
+
+        self.camera_selector.addItems([device.label for device in self.camera_devices])
+        for option_index, device in enumerate(self.camera_devices):
+            if device.index == current_index:
+                self.camera_selector.setCurrentIndex(option_index)
+                break
+        self._show_success("摄像头已刷新", f"发现 {len(self.camera_devices)} 个可用摄像头。")
 
     def start_image_detection(self) -> None:
         """Run still image detection."""
@@ -436,6 +469,8 @@ class DetectionView(Page):
         self.gpu_value.setText(str(data.get("gpu", "CPU 模式")))
         if data.get("total_frames"):
             self.progress_value.setText(f"{data.get('frame', 0)} / {data.get('total_frames', 0)} 帧")
+        elif data.get("backend"):
+            self.progress_value.setText(f"摄像头后端：{data.get('backend')}")
         self._render_class_counts(data.get("counts", {}))
         self._render_detection_details([])
 
@@ -523,6 +558,7 @@ class DetectionView(Page):
         self.stop_button.setEnabled(running and can_stop)
         self.mode_selector.setEnabled(not running)
         self.camera_selector.setEnabled(not running)
+        self.refresh_camera_button.setEnabled(not running and self.mode_selector.currentText() == "摄像头检测")
         self.device_selector.setEnabled(not running)
         self.pick_file_button.setEnabled(not running)
 
@@ -530,6 +566,7 @@ class DetectionView(Page):
         mode = self.mode_selector.currentText()
         is_camera = mode == "摄像头检测"
         self.camera_selector.setEnabled(is_camera)
+        self.refresh_camera_button.setEnabled(is_camera)
         self.pick_file_button.setEnabled(not is_camera)
         self.file_path.setEnabled(not is_camera)
         if is_camera:
