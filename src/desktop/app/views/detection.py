@@ -36,6 +36,7 @@ from qfluentwidgets import (
 
 from ..services.camera_detector import CameraDetectorThread
 from ..services.camera_devices import discover_camera_devices
+from ..services.camera_snapshot import capture_camera_snapshot
 from ..services.gpu_status import query_gpu_status
 from ..services.media_detector import DetectionCandidate, DetectionSummary, VideoDetectorThread, detect_image
 from ..services.model_locator import find_best_model
@@ -257,6 +258,7 @@ class DetectionView(Page):
         self._render_detection_details([])
 
         self.start_button = PrimaryPushButton(FIF.PLAY, "开始检测", self)
+        self.snapshot_button = PushButton(FIF.PHOTO, "拍照识别", self)
         self.stop_button = PushButton(FIF.PAUSE, "停止", self)
         self.open_output_button = PushButton(FIF.FOLDER, "打开结果", self)
         self.clear_button = PushButton(FIF.SYNC, "清空画面", self)
@@ -267,9 +269,10 @@ class DetectionView(Page):
         run_buttons.setHorizontalSpacing(10)
         run_buttons.setVerticalSpacing(10)
         run_buttons.addWidget(self.start_button, 0, 0)
-        run_buttons.addWidget(self.stop_button, 0, 1)
-        run_buttons.addWidget(self.open_output_button, 1, 0)
-        run_buttons.addWidget(self.clear_button, 1, 1)
+        run_buttons.addWidget(self.snapshot_button, 0, 1)
+        run_buttons.addWidget(self.stop_button, 1, 0)
+        run_buttons.addWidget(self.open_output_button, 1, 1)
+        run_buttons.addWidget(self.clear_button, 2, 0, 1, 2)
 
         side.addWidget(self.source_card)
         side.addWidget(self.params_card)
@@ -298,6 +301,7 @@ class DetectionView(Page):
         self.pick_file_button.clicked.connect(self.pick_source_file)
         self.refresh_camera_button.clicked.connect(self.refresh_camera_devices)
         self.start_button.clicked.connect(self.start_detection)
+        self.snapshot_button.clicked.connect(self.capture_snapshot_detection)
         self.stop_button.clicked.connect(self.stop_detection)
         self.open_output_button.clicked.connect(self.open_last_output)
         self.clear_button.clicked.connect(self.clear_current_view)
@@ -346,6 +350,42 @@ class DetectionView(Page):
         self.update_status("启动中")
         self.camera_thread.start()
 
+    def capture_snapshot_detection(self) -> None:
+        """Capture one camera frame and run still-image detection on it."""
+        if not self._ensure_model():
+            return
+        if self.camera_thread and self.camera_thread.isRunning():
+            self._show_error("请先停止实时检测", "拍照识别会临时打开摄像头，请先停止当前实时检测。")
+            return
+        if not self.camera_devices:
+            self._show_error("未发现摄像头", "请先打开摄像头或 Camo，然后点击“刷新”重新检测摄像头。")
+            return
+
+        camera_device = self.camera_devices[self.camera_selector.currentIndex()]
+        self._set_running(True, can_stop=False)
+        self.update_status("拍照中")
+        try:
+            snapshot_path = capture_camera_snapshot(camera_device.index, camera_device.backend)
+            self.selected_image_path = snapshot_path
+            self.file_path.setText(str(snapshot_path))
+            self.update_status("快照检测中")
+            summary = detect_image(
+                image_path=snapshot_path,
+                model_path=self.model_candidate.path,
+                conf=self.conf_slider.value() / 100,
+                iou=self.iou_slider.value() / 100,
+                imgsz=self.size_spin.value(),
+                device_mode=self.device_selector.currentText(),
+                save_record=self.record_switch.isChecked(),
+            )
+            self.apply_summary(summary)
+            self.update_status("拍照识别完成")
+            self._show_success("拍照识别完成", f"快照：{snapshot_path.name}；结果已保存。")
+        except Exception as exc:
+            self.handle_error(str(exc))
+        finally:
+            self._set_running(False)
+
     def refresh_camera_devices(self) -> None:
         """Probe camera devices again after USB or virtual camera changes."""
         if self.camera_thread and self.camera_thread.isRunning():
@@ -357,6 +397,7 @@ class DetectionView(Page):
         self.camera_selector.clear()
         if not self.camera_devices:
             self.camera_devices = []
+            self.snapshot_button.setEnabled(False)
             self._show_error("未发现摄像头", "没有检测到可打开的摄像头，请确认权限、Camo 虚拟摄像头和占用情况。")
             return
 
@@ -365,6 +406,7 @@ class DetectionView(Page):
             if device.index == current_index:
                 self.camera_selector.setCurrentIndex(option_index)
                 break
+        self.snapshot_button.setEnabled(self.mode_selector.currentText() == "摄像头检测")
         self._show_success("摄像头已刷新", f"发现 {len(self.camera_devices)} 个可用摄像头。")
 
     def start_image_detection(self) -> None:
@@ -555,6 +597,9 @@ class DetectionView(Page):
 
     def _set_running(self, running: bool, can_stop: bool = True) -> None:
         self.start_button.setEnabled(not running)
+        self.snapshot_button.setEnabled(
+            not running and self.mode_selector.currentText() == "摄像头检测" and bool(self.camera_devices)
+        )
         self.stop_button.setEnabled(running and can_stop)
         self.mode_selector.setEnabled(not running)
         self.camera_selector.setEnabled(not running)
@@ -567,6 +612,7 @@ class DetectionView(Page):
         is_camera = mode == "摄像头检测"
         self.camera_selector.setEnabled(is_camera)
         self.refresh_camera_button.setEnabled(is_camera)
+        self.snapshot_button.setEnabled(is_camera and bool(self.camera_devices))
         self.pick_file_button.setEnabled(not is_camera)
         self.file_path.setEnabled(not is_camera)
         if is_camera:
