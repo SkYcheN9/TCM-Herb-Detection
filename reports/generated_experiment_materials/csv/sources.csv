@@ -1,0 +1,7 @@
+﻿Item,Path
+Primary run,D:\Study\Work\Comprehensive\final_results_full\reports\ablation\runs\baseline_cbam_bifpn
+Training results,D:\Study\Work\Comprehensive\final_results_full\reports\ablation\runs\baseline_cbam_bifpn\results.csv
+Training args,D:\Study\Work\Comprehensive\final_results_full\reports\ablation\runs\baseline_cbam_bifpn\args.yaml
+Ablation directory,D:\Study\Work\Comprehensive\final_results_full\reports\ablation
+Ablation summary,D:\Study\Work\Comprehensive\final_results_full\reports\ablation\summary.csv
+Ablation history,D:\Study\Work\Comprehensive\final_results_full\reports\ablation\history.csv
